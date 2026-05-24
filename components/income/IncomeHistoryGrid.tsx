@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import type { IncomeStream, IncomeHistory } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
-import { fmtCurrency } from "@/lib/utils";
+import { cn, fmtCurrency } from "@/lib/utils";
 import { setMonthlyAmount } from "@/app/(app)/income/actions";
 import {
   BarChart,
@@ -43,6 +44,16 @@ function fmtMonthLabel(iso: string) {
   });
 }
 
+function isInRange(
+  isoMonth: string,
+  startMonth: string | null,
+  endMonth: string | null
+): boolean {
+  if (startMonth && isoMonth < startMonth) return false;
+  if (endMonth && isoMonth > endMonth) return false;
+  return true;
+}
+
 export function IncomeHistoryGrid({
   streams,
   history,
@@ -58,6 +69,16 @@ export function IncomeHistoryGrid({
     }
     return map;
   }, [history]);
+
+  const [banner, setBanner] = useState<
+    { kind: "ok" | "err"; text: string } | null
+  >(null);
+
+  useEffect(() => {
+    if (!banner || banner.kind !== "ok") return;
+    const t = setTimeout(() => setBanner(null), 2500);
+    return () => clearTimeout(t);
+  }, [banner]);
 
   const chartData = useMemo(
     () =>
@@ -84,8 +105,29 @@ export function IncomeHistoryGrid({
 
   return (
     <div className="space-y-4">
+      {banner && (
+        <div
+          className={cn(
+            "rounded-md border px-3 py-2 text-xs flex items-start gap-2",
+            banner.kind === "ok"
+              ? "bg-[var(--teal-bg)] border-[color:var(--teal)]/30 text-[var(--teal-dark)]"
+              : "bg-[var(--coral-bg)] border-[color:var(--coral)]/30 text-[var(--coral)]"
+          )}
+        >
+          {banner.kind === "ok" ? (
+            <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+          ) : (
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          )}
+          <span>{banner.text}</span>
+        </div>
+      )}
       <Card>
         <CardTitle>Income History (last 12 months)</CardTitle>
+        <p className="text-[11px] text-[var(--muted-foreground)] -mt-2 mb-3">
+          Tab or click into a cell, type the amount earned, and tab out to save.
+          Cells outside a stream's active range are disabled.
+        </p>
         <div className="overflow-x-auto -mx-1 px-1">
           <table className="w-full text-xs">
             <thead>
@@ -116,15 +158,28 @@ export function IncomeHistoryGrid({
                     <td className="py-1.5 pr-3 text-[var(--muted-foreground)]">
                       {fmtMonthLabel(m)}
                     </td>
-                    {streams.map((s) => (
-                      <td key={s.id} className="py-1 px-1">
-                        <EditableCell
-                          streamId={s.id}
-                          month={m}
-                          initial={byKey.get(`${s.id}|${m}`) ?? 0}
-                        />
-                      </td>
-                    ))}
+                    {streams.map((s) => {
+                      const inRange = isInRange(m, s.start_month, s.end_month);
+                      return (
+                        <td key={s.id} className="py-1 px-1">
+                          <EditableCell
+                            streamId={s.id}
+                            month={m}
+                            initial={byKey.get(`${s.id}|${m}`) ?? 0}
+                            disabled={!inRange}
+                            onError={(msg) =>
+                              setBanner({ kind: "err", text: msg })
+                            }
+                            onSaved={() =>
+                              setBanner({
+                                kind: "ok",
+                                text: `Saved ${s.name} – ${fmtMonthLabel(m)}.`,
+                              })
+                            }
+                          />
+                        </td>
+                      );
+                    })}
                     <td className="py-1.5 pl-2 text-right font-mono">
                       {fmtCurrency(total)}
                     </td>
@@ -134,9 +189,10 @@ export function IncomeHistoryGrid({
             </tbody>
             <tfoot>
               <tr className="border-t border-[var(--border)] font-medium">
-                <td className="py-2 pr-3">Avg</td>
+                <td className="py-2 pr-3">Avg (active months)</td>
                 {streams.map((s) => {
                   const vals = months
+                    .filter((m) => isInRange(m, s.start_month, s.end_month))
                     .map((m) => byKey.get(`${s.id}|${m}`) ?? 0)
                     .filter((v) => v > 0);
                   const avg =
@@ -213,13 +269,36 @@ function EditableCell({
   streamId,
   month,
   initial,
+  disabled,
+  onError,
+  onSaved,
 }: {
   streamId: string;
   month: string;
   initial: number;
+  disabled: boolean;
+  onError: (msg: string) => void;
+  onSaved: () => void;
 }) {
   const [value, setValue] = useState(initial > 0 ? String(initial) : "");
   const [isPending, startTransition] = useTransition();
+
+  // Keep cell in sync if the underlying data changes (after revalidation)
+  useEffect(() => {
+    setValue(initial > 0 ? String(initial) : "");
+  }, [initial]);
+
+  if (disabled) {
+    return (
+      <input
+        type="number"
+        value=""
+        disabled
+        className="!py-1 !text-xs text-right font-mono opacity-40 cursor-not-allowed"
+        placeholder="—"
+      />
+    );
+  }
 
   return (
     <input
@@ -230,10 +309,16 @@ function EditableCell({
       disabled={isPending}
       onChange={(e) => setValue(e.target.value)}
       onBlur={(e) => {
-        const n = parseFloat(e.target.value) || 0;
-        if (n === initial) return;
+        const n = parseFloat(e.target.value);
+        const norm = Number.isFinite(n) ? n : 0;
+        if (norm === initial) return;
         startTransition(async () => {
-          await setMonthlyAmount(streamId, month, n);
+          try {
+            await setMonthlyAmount(streamId, month, norm);
+            onSaved();
+          } catch (err) {
+            onError(`Couldn't save: ${(err as Error).message}`);
+          }
         });
       }}
       className="!py-1 !text-xs text-right font-mono"

@@ -222,6 +222,7 @@ export default async function DashboardPage() {
         <CashflowHistoryChart
           income={incomeHistory}
           transactions={transactions}
+          streams={streams}
           recurringMonthlyExpenseEstimate={bizExpenses + persExpenses}
           monthlyDebtMins={totalMins}
         />

@@ -226,6 +226,22 @@ function StreamForm({
               />
             </Field>
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Active from (optional)">
+              <input
+                type="month"
+                name="start_month"
+                defaultValue={stream?.start_month?.slice(0, 7) ?? ""}
+              />
+            </Field>
+            <Field label="Ended (optional)">
+              <input
+                type="month"
+                name="end_month"
+                defaultValue={stream?.end_month?.slice(0, 7) ?? ""}
+              />
+            </Field>
+          </div>
           <Field label="Notes">
             <input
               name="notes"

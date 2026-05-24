@@ -13,6 +13,8 @@ export type IncomeStream = {
   type: IncomeStreamType;
   avg_monthly: number;
   is_primary: boolean;
+  start_month: string | null; // YYYY-MM-01 or null
+  end_month: string | null;
   notes: string | null;
   created_at: string;
 };

@@ -20,6 +20,8 @@ create table if not exists income_streams (
   )) not null default 'business',
   avg_monthly numeric default 0,
   is_primary boolean default false,
+  start_month date,
+  end_month date,
   notes text,
   created_at timestamptz default now()
 );

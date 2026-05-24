@@ -14,16 +14,18 @@ import {
 } from "recharts";
 import { fmtCurrency } from "@/lib/utils";
 import { lastNMonthKeys, monthLabel, monthKey } from "@/lib/dates";
-import type { IncomeHistory, ExpenseTransaction } from "@/types";
+import type { IncomeHistory, ExpenseTransaction, IncomeStream } from "@/types";
 
 export function CashflowHistoryChart({
   income,
   transactions,
+  streams,
   recurringMonthlyExpenseEstimate,
   monthlyDebtMins,
 }: {
   income: IncomeHistory[];
   transactions: ExpenseTransaction[];
+  streams: IncomeStream[];
   recurringMonthlyExpenseEstimate: number;
   monthlyDebtMins: number;
 }) {
@@ -44,27 +46,38 @@ export function CashflowHistoryChart({
     }
     return months.map((m) => {
       const inc = incomeByMonth.get(m) ?? 0;
+      // Fall back to sum of active stream avgs when no history is logged for this month.
+      const monthFirst = `${m}-01`;
+      const projectedIncome = streams.reduce((acc, s) => {
+        if (s.start_month && monthFirst < s.start_month) return acc;
+        if (s.end_month && monthFirst > s.end_month) return acc;
+        return acc + Number(s.avg_monthly || 0);
+      }, 0);
+      const usedIncome = inc > 0 ? inc : projectedIncome;
       const txnExp = expensesByMonth.get(m) ?? 0;
       const totalOut =
         txnExp + recurringMonthlyExpenseEstimate + monthlyDebtMins;
       return {
         month: m,
         label: monthLabel(m),
-        income: Math.round(inc),
+        income: Math.round(usedIncome),
+        incomeProjected: inc === 0 && projectedIncome > 0,
         expenses: Math.round(totalOut),
         transactionsOnly: Math.round(txnExp),
-        net: Math.round(inc - totalOut),
+        net: Math.round(usedIncome - totalOut),
       };
     });
   }, [
     income,
     transactions,
+    streams,
     recurringMonthlyExpenseEstimate,
     monthlyDebtMins,
   ]);
 
   const hasAnyIncome = data.some((d) => d.income > 0);
   const hasAnyTransactions = data.some((d) => d.transactionsOnly > 0);
+  const someProjected = data.some((d) => d.incomeProjected);
 
   if (!hasAnyIncome && !hasAnyTransactions) {
     return (
@@ -76,7 +89,14 @@ export function CashflowHistoryChart({
   }
 
   return (
-    <div className="h-[260px] w-full">
+    <div>
+      {someProjected && (
+        <div className="text-[10px] text-[var(--muted-foreground)] mb-1">
+          Months without logged income use each stream's average monthly amount
+          as a projection.
+        </div>
+      )}
+      <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={data}
@@ -151,6 +171,7 @@ export function CashflowHistoryChart({
           />
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

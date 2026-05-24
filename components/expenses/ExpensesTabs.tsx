@@ -1,13 +1,23 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Trash2, Receipt } from "lucide-react";
+import {
+  Trash2,
+  Receipt,
+  Pencil,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
 import type { Expense } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn, fmtCurrency } from "@/lib/utils";
-import { addExpense, deleteExpense } from "@/app/(app)/expenses/actions";
+import {
+  addExpense,
+  deleteExpense,
+  updateExpense,
+} from "@/app/(app)/expenses/actions";
 
 const BIZ_CATEGORIES = [
   "Software/Tools",
@@ -37,12 +47,16 @@ type Tab = "business" | "personal";
 export function ExpensesTabs({ expenses }: { expenses: Expense[] }) {
   const [tab, setTab] = useState<Tab>("business");
   const [grouped, setGrouped] = useState(false);
+  const [editing, setEditing] = useState<Expense | null>(null);
+  const [banner, setBanner] = useState<
+    { kind: "ok" | "err"; text: string } | null
+  >(null);
 
   const filtered = useMemo(
     () => expenses.filter((e) => e.type === tab),
     [expenses, tab]
   );
-  const total = filtered.reduce((a, e) => a + e.amount, 0);
+  const total = filtered.reduce((a, e) => a + Number(e.amount), 0);
 
   const cats = tab === "business" ? BIZ_CATEGORIES : PERS_CATEGORIES;
 
@@ -75,6 +89,24 @@ export function ExpensesTabs({ expenses }: { expenses: Expense[] }) {
         </label>
       </div>
 
+      {banner && (
+        <div
+          className={cn(
+            "rounded-md border px-3 py-2 text-xs flex items-start gap-2",
+            banner.kind === "ok"
+              ? "bg-[var(--teal-bg)] border-[color:var(--teal)]/30 text-[var(--teal-dark)]"
+              : "bg-[var(--coral-bg)] border-[color:var(--coral)]/30 text-[var(--coral)]"
+          )}
+        >
+          {banner.kind === "ok" ? (
+            <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+          ) : (
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          )}
+          <span>{banner.text}</span>
+        </div>
+      )}
+
       <Card>
         <CardTitle>
           {tab === "business" ? "Business Expenses" : "Personal Expenses"}
@@ -87,11 +119,16 @@ export function ExpensesTabs({ expenses }: { expenses: Expense[] }) {
             description="Add recurring fixed costs so cashflow math is accurate."
           />
         ) : grouped ? (
-          <GroupedList expenses={filtered} />
+          <GroupedList expenses={filtered} onEdit={setEditing} onBanner={setBanner} />
         ) : (
           <ul className="divide-y divide-[var(--border)]">
             {filtered.map((e) => (
-              <ExpenseRow key={e.id} expense={e} />
+              <ExpenseRow
+                key={e.id}
+                expense={e}
+                onEdit={() => setEditing(e)}
+                onBanner={setBanner}
+              />
             ))}
           </ul>
         )}
@@ -109,9 +146,17 @@ export function ExpensesTabs({ expenses }: { expenses: Expense[] }) {
         <form
           action={async (fd) => {
             fd.set("type", tab);
-            await addExpense(fd);
-            (document.getElementById("exp-name") as HTMLInputElement)?.focus();
-            (document.getElementById("exp-form") as HTMLFormElement)?.reset();
+            try {
+              await addExpense(fd);
+              setBanner({ kind: "ok", text: "Added." });
+              (document.getElementById("exp-form") as HTMLFormElement)?.reset();
+              (document.getElementById("exp-name") as HTMLInputElement)?.focus();
+            } catch (e) {
+              setBanner({
+                kind: "err",
+                text: `Couldn't add: ${(e as Error).message}`,
+              });
+            }
           }}
           id="exp-form"
           className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end"
@@ -156,11 +201,28 @@ export function ExpensesTabs({ expenses }: { expenses: Expense[] }) {
           </div>
         </form>
       </Card>
+
+      {editing && (
+        <EditExpenseModal
+          expense={editing}
+          categories={editing.type === "business" ? BIZ_CATEGORIES : PERS_CATEGORIES}
+          onClose={() => setEditing(null)}
+          onBanner={setBanner}
+        />
+      )}
     </div>
   );
 }
 
-function ExpenseRow({ expense }: { expense: Expense }) {
+function ExpenseRow({
+  expense,
+  onEdit,
+  onBanner,
+}: {
+  expense: Expense;
+  onEdit: () => void;
+  onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
+}) {
   const [isPending, startTransition] = useTransition();
   return (
     <li className="flex items-center gap-3 py-2.5">
@@ -171,17 +233,33 @@ function ExpenseRow({ expense }: { expense: Expense }) {
         </div>
       </div>
       <span className="font-mono text-sm shrink-0">
-        {fmtCurrency(expense.amount)}/mo
+        {fmtCurrency(Number(expense.amount))}/mo
       </span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onEdit}
+        aria-label={`Edit ${expense.name}`}
+      >
+        <Pencil size={12} />
+      </Button>
       <Button
         variant="danger"
         size="sm"
         disabled={isPending}
-        onClick={() =>
+        onClick={() => {
+          if (!confirm(`Delete "${expense.name}"?`)) return;
           startTransition(async () => {
-            await deleteExpense(expense.id);
-          })
-        }
+            try {
+              await deleteExpense(expense.id);
+            } catch (e) {
+              onBanner({
+                kind: "err",
+                text: `Couldn't delete: ${(e as Error).message}`,
+              });
+            }
+          });
+        }}
         aria-label={`Delete ${expense.name}`}
       >
         <Trash2 size={12} />
@@ -190,7 +268,15 @@ function ExpenseRow({ expense }: { expense: Expense }) {
   );
 }
 
-function GroupedList({ expenses }: { expenses: Expense[] }) {
+function GroupedList({
+  expenses,
+  onEdit,
+  onBanner,
+}: {
+  expenses: Expense[];
+  onEdit: (e: Expense) => void;
+  onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
+}) {
   const groups = expenses.reduce<Record<string, Expense[]>>((acc, e) => {
     const key = e.category || "General";
     (acc[key] = acc[key] ?? []).push(e);
@@ -198,13 +284,13 @@ function GroupedList({ expenses }: { expenses: Expense[] }) {
   }, {});
   const entries = Object.entries(groups).sort(
     (a, b) =>
-      b[1].reduce((s, e) => s + e.amount, 0) -
-      a[1].reduce((s, e) => s + e.amount, 0)
+      b[1].reduce((s, e) => s + Number(e.amount), 0) -
+      a[1].reduce((s, e) => s + Number(e.amount), 0)
   );
   return (
     <div className="space-y-3">
       {entries.map(([cat, items]) => {
-        const sum = items.reduce((a, e) => a + e.amount, 0);
+        const sum = items.reduce((a, e) => a + Number(e.amount), 0);
         return (
           <div key={cat}>
             <div className="flex justify-between text-xs font-medium border-b border-[var(--border)] pb-1">
@@ -218,12 +304,123 @@ function GroupedList({ expenses }: { expenses: Expense[] }) {
             </div>
             <ul className="divide-y divide-[var(--border)]">
               {items.map((e) => (
-                <ExpenseRow key={e.id} expense={e} />
+                <ExpenseRow
+                  key={e.id}
+                  expense={e}
+                  onEdit={() => onEdit(e)}
+                  onBanner={onBanner}
+                />
               ))}
             </ul>
           </div>
         );
       })}
     </div>
+  );
+}
+
+function EditExpenseModal({
+  expense,
+  categories,
+  onClose,
+  onBanner,
+}: {
+  expense: Expense;
+  categories: string[];
+  onClose: () => void;
+  onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-6">
+      <div className="w-full md:max-w-md rounded-t-xl md:rounded-xl border border-[var(--border)] bg-[var(--background)] p-5">
+        <h3 className="text-base font-semibold mb-4">Edit Expense</h3>
+        <form
+          action={(fd) => {
+            fd.set("id", expense.id);
+            startTransition(async () => {
+              try {
+                await updateExpense(fd);
+                onBanner({ kind: "ok", text: "Saved." });
+                onClose();
+              } catch (e) {
+                onBanner({
+                  kind: "err",
+                  text: `Couldn't save: ${(e as Error).message}`,
+                });
+              }
+            });
+          }}
+          className="space-y-3"
+        >
+          <Field label="Name">
+            <input
+              name="name"
+              required
+              defaultValue={expense.name}
+              autoFocus
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Type">
+              <select name="type" defaultValue={expense.type}>
+                <option value="personal">Personal</option>
+                <option value="business">Business</option>
+              </select>
+            </Field>
+            <Field label="Amount / mo">
+              <input
+                type="number"
+                name="amount"
+                step="0.01"
+                min="0"
+                required
+                defaultValue={expense.amount}
+              />
+            </Field>
+          </div>
+          <Field label="Category">
+            <select
+              name="category"
+              defaultValue={expense.category ?? categories[0]}
+            >
+              {categories.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+              {expense.category &&
+                !categories.includes(expense.category) && (
+                  <option>{expense.category}</option>
+                )}
+            </select>
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              Save
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <div className="text-[11px] text-[var(--muted-foreground)] mb-1">
+        {label}
+      </div>
+      {children}
+    </label>
   );
 }

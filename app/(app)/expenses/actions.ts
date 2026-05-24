@@ -72,8 +72,41 @@ export async function addExpensesBulk(
   return { inserted: data?.length ?? rows.length };
 }
 
+export async function updateExpense(formData: FormData) {
+  const { user, supabase } = await requireUser();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Missing id");
+  const name = String(formData.get("name") ?? "").trim();
+  const type = String(formData.get("type") ?? "business") as
+    | "business"
+    | "personal";
+  const amount = parseFloat(String(formData.get("amount") ?? "0")) || 0;
+  const category = String(formData.get("category") ?? "").trim() || null;
+  if (!name) throw new Error("Name is required");
+  if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
+
+  const { error } = await supabase
+    .from("expenses")
+    .update({ name, type, amount, category })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) {
+    console.error("[expenses] update failed:", error.message);
+    throw new Error(error.message);
+  }
+  reval();
+}
+
 export async function deleteExpense(id: string) {
   const { user, supabase } = await requireUser();
-  await supabase.from("expenses").delete().eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase
+    .from("expenses")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) {
+    console.error("[expenses] delete failed:", error.message);
+    throw new Error(error.message);
+  }
   reval();
 }
