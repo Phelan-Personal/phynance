@@ -124,7 +124,12 @@ export type ExpenseTransaction = {
   created_at: string;
 };
 
-export type AssetType = "savings" | "crypto" | "stock" | "other";
+export type AssetType =
+  | "savings"
+  | "bank_account"
+  | "crypto"
+  | "stock"
+  | "other";
 
 export type Asset = {
   id: string;

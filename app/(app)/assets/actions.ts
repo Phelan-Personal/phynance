@@ -20,25 +20,26 @@ export async function upsertAsset(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const type = String(formData.get("type") ?? "savings") as
     | "savings"
+    | "bank_account"
     | "crypto"
     | "stock"
     | "other";
   const symbol = String(formData.get("symbol") ?? "").trim().toUpperCase() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const trackUnits = String(formData.get("track_units") ?? "") === "on";
 
   if (!name) throw new Error("Name is required");
 
   let units: number;
   let price_per_unit: number;
 
-  if (type === "savings") {
-    // Single balance input. Store as 1 unit × balance for consistency.
-    const balance = num(formData.get("balance"));
-    units = 1;
-    price_per_unit = balance;
-  } else {
+  if (trackUnits) {
     units = num(formData.get("units"));
     price_per_unit = num(formData.get("price_per_unit"));
+  } else {
+    // Plain "total value" mode — store as 1 unit × total for consistency.
+    units = 1;
+    price_per_unit = num(formData.get("balance"));
   }
 
   const payload = {

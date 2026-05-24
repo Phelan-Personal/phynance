@@ -147,7 +147,7 @@ create table if not exists assets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users not null,
   name text not null,
-  type text check (type in ('savings', 'crypto', 'stock', 'other')) not null default 'savings',
+  type text check (type in ('savings', 'bank_account', 'crypto', 'stock', 'other')) not null default 'savings',
   symbol text,                                   -- ticker (BTC, AAPL); null for savings
   units numeric not null default 1,              -- 1 for savings; share/coin count otherwise
   price_per_unit numeric not null default 0,     -- $ per unit (for savings, = total balance)

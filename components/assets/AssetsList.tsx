@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import {
   Banknote,
+  Building2,
   Coins,
   LineChart,
   Wallet,
@@ -20,6 +21,7 @@ import { deleteAsset, upsertAsset } from "@/app/(app)/assets/actions";
 
 const TYPE_LABEL: Record<AssetType, string> = {
   savings: "Savings",
+  bank_account: "Bank",
   crypto: "Crypto",
   stock: "Stock",
   other: "Other",
@@ -27,6 +29,7 @@ const TYPE_LABEL: Record<AssetType, string> = {
 
 const TYPE_ICON: Record<AssetType, typeof Wallet> = {
   savings: Banknote,
+  bank_account: Building2,
   crypto: Coins,
   stock: LineChart,
   other: Wallet,
@@ -34,8 +37,9 @@ const TYPE_ICON: Record<AssetType, typeof Wallet> = {
 
 const TYPE_TONE: Record<AssetType, string> = {
   savings: "bg-[var(--teal-bg)] text-[var(--teal-dark)]",
+  bank_account: "bg-[var(--blue-bg)] text-[var(--blue-fg)]",
   crypto: "bg-[var(--amber-bg)] text-[var(--amber)]",
-  stock: "bg-[var(--blue-bg)] text-[var(--blue-fg)]",
+  stock: "bg-[var(--purple-bg)] text-[var(--purple-fg)]",
   other: "bg-[var(--muted)] text-[var(--muted-foreground)]",
 };
 
@@ -49,6 +53,7 @@ export function AssetsList({ assets }: { assets: Asset[] }) {
   const totalsByType = useMemo(() => {
     const m: Record<AssetType, { value: number; count: number }> = {
       savings: { value: 0, count: 0 },
+      bank_account: { value: 0, count: 0 },
       crypto: { value: 0, count: 0 },
       stock: { value: 0, count: 0 },
       other: { value: 0, count: 0 },
@@ -67,8 +72,13 @@ export function AssetsList({ assets }: { assets: Asset[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
         <SummaryCell label="Total" value={fmtCurrency(grandTotal)} tone="primary" />
+        <SummaryCell
+          label="Bank"
+          value={fmtCurrency(totalsByType.bank_account.value)}
+          sub={`${totalsByType.bank_account.count} account${totalsByType.bank_account.count === 1 ? "" : "s"}`}
+        />
         <SummaryCell
           label="Savings"
           value={fmtCurrency(totalsByType.savings.value)}
@@ -208,7 +218,7 @@ function AssetRow({
             {TYPE_LABEL[asset.type]}
           </span>
         </div>
-        {asset.type !== "savings" && (
+        {Number(asset.units) > 1 && (
           <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)] font-mono">
             {Number(asset.units).toLocaleString(undefined, {
               maximumFractionDigits: 8,
@@ -265,21 +275,25 @@ function AssetForm({
   onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
   const [type, setType] = useState<AssetType>(asset?.type ?? "savings");
+  const wasUnitTracked = asset ? Number(asset.units) > 1 : false;
+  const [trackUnits, setTrackUnits] = useState<boolean>(wasUnitTracked);
   const [units, setUnits] = useState<string>(
-    asset && asset.type !== "savings" ? String(asset.units) : ""
+    wasUnitTracked ? String(asset?.units ?? "") : ""
   );
   const [price, setPrice] = useState<string>(
-    asset && asset.type !== "savings" ? String(asset.price_per_unit) : ""
+    wasUnitTracked ? String(asset?.price_per_unit ?? "") : ""
   );
   const [balance, setBalance] = useState<string>(
-    asset && asset.type === "savings" ? String(asset.price_per_unit) : ""
+    asset && !wasUnitTracked ? String(asset.price_per_unit) : ""
   );
   const [isPending, startTransition] = useTransition();
 
-  const computedTotal =
-    type === "savings"
-      ? parseFloat(balance) || 0
-      : (parseFloat(units) || 0) * (parseFloat(price) || 0);
+  const isSimpleType = type === "savings" || type === "bank_account";
+  const effectiveTrack = !isSimpleType && trackUnits;
+
+  const computedTotal = effectiveTrack
+    ? (parseFloat(units) || 0) * (parseFloat(price) || 0)
+    : parseFloat(balance) || 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-6">
@@ -311,11 +325,13 @@ function AssetForm({
               required
               defaultValue={asset?.name ?? ""}
               placeholder={
-                type === "savings"
-                  ? "Emergency fund, Ally Bank…"
-                  : type === "crypto"
-                    ? "Bitcoin, Ethereum…"
-                    : "Vanguard 401k, Apple shares…"
+                type === "bank_account"
+                  ? "Chase Checking, Ally Bank…"
+                  : type === "savings"
+                    ? "Emergency fund, HYSA…"
+                    : type === "crypto"
+                      ? "Bitcoin, Ethereum…"
+                      : "Vanguard 401k, Apple shares…"
               }
               autoFocus
             />
@@ -326,6 +342,7 @@ function AssetForm({
               value={type}
               onChange={(e) => setType(e.target.value as AssetType)}
             >
+              <option value="bank_account">Bank account (checking, etc.)</option>
               <option value="savings">Savings (cash balance)</option>
               <option value="crypto">Crypto</option>
               <option value="stock">Stock</option>
@@ -333,31 +350,34 @@ function AssetForm({
             </select>
           </Field>
 
-          {type === "savings" ? (
-            <Field label="Balance ($)">
+          {!isSimpleType && (
+            <Field label="Symbol / ticker (optional)">
               <input
-                type="number"
-                name="balance"
-                step="0.01"
-                min="0"
-                required
-                value={balance}
-                onChange={(e) => setBalance(e.target.value)}
+                name="symbol"
+                defaultValue={asset?.symbol ?? ""}
+                placeholder={
+                  type === "crypto" ? "BTC, ETH, SOL…" : "AAPL, NVDA, VTI…"
+                }
               />
             </Field>
-          ) : (
+          )}
+
+          {!isSimpleType && (
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                name="track_units"
+                checked={trackUnits}
+                onChange={(e) => setTrackUnits(e.target.checked)}
+              />
+              <span>
+                Track units × price (live prices will multiply this later)
+              </span>
+            </label>
+          )}
+
+          {effectiveTrack ? (
             <>
-              <Field label="Symbol / ticker">
-                <input
-                  name="symbol"
-                  defaultValue={asset?.symbol ?? ""}
-                  placeholder={
-                    type === "crypto"
-                      ? "BTC, ETH, SOL…"
-                      : "AAPL, NVDA, VTI…"
-                  }
-                />
-              </Field>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Units">
                   <input
@@ -383,12 +403,32 @@ function AssetForm({
                 </Field>
               </div>
               <div className="rounded-md bg-[var(--muted)] px-3 py-2 flex justify-between text-xs">
-                <span className="text-[var(--muted-foreground)]">Total value</span>
+                <span className="text-[var(--muted-foreground)]">
+                  Total value
+                </span>
                 <span className="font-mono font-medium">
                   {fmtCurrency(computedTotal)}
                 </span>
               </div>
             </>
+          ) : (
+            <Field
+              label={
+                type === "bank_account"
+                  ? "Current balance ($)"
+                  : "Total value ($)"
+              }
+            >
+              <input
+                type="number"
+                name="balance"
+                step="0.01"
+                min="0"
+                required
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+              />
+            </Field>
           )}
 
           <Field label="Notes">
