@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { Pencil, Trash2, AlertTriangle, ExternalLink } from "lucide-react";
 import type { Debt } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -333,6 +333,18 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {debt.payment_url && (
+          <a
+            href={debt.payment_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--teal-dark)] hover:bg-[var(--teal-bg)] transition-colors"
+            aria-label={`Pay ${debt.name}`}
+          >
+            <ExternalLink size={11} />
+            Pay
+          </a>
+        )}
         <Button
           variant="outline"
           size="sm"

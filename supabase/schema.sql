@@ -72,6 +72,7 @@ create table if not exists debts (
   original_balance numeric,
   credit_limit numeric,                          -- credit line cap (cards, LOCs); null for installment loans
   due_day int check (due_day between 1 and 31),
+  payment_url text,                              -- lender login / payment page
   notes text,
   is_paid_off boolean default false,
   paid_off_at timestamptz,

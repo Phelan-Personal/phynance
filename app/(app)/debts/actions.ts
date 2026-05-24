@@ -37,6 +37,12 @@ export async function upsertDebt(formData: FormData) {
       : null;
   const due_day = parseDay(formData.get("due_day"));
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const rawUrl = String(formData.get("payment_url") ?? "").trim();
+  const payment_url = rawUrl
+    ? /^https?:\/\//i.test(rawUrl)
+      ? rawUrl
+      : `https://${rawUrl}`
+    : null;
 
   if (!name) throw new Error("Name is required");
 
@@ -52,6 +58,7 @@ export async function upsertDebt(formData: FormData) {
         original_balance,
         credit_limit,
         due_day,
+        payment_url,
         notes,
         is_paid_off: balance <= 0.01,
         paid_off_at: balance <= 0.01 ? new Date().toISOString() : null,
@@ -73,6 +80,7 @@ export async function upsertDebt(formData: FormData) {
       original_balance: original_balance ?? balance,
       credit_limit,
       due_day,
+      payment_url,
       notes,
     });
     if (error) {

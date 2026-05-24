@@ -107,6 +107,17 @@ export function DebtForm({
               placeholder="e.g. 15"
             />
           </Field>
+          <Field label="Payment URL (lender login)">
+            <input
+              type="url"
+              name="payment_url"
+              defaultValue={debt?.payment_url ?? ""}
+              placeholder="chase.com or https://chase.com"
+              inputMode="url"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
           <Field label="Notes">
             <input name="notes" defaultValue={debt?.notes ?? ""} />
           </Field>
