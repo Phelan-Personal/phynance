@@ -125,10 +125,11 @@ export function IncomeSettingsAndCashflow({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <NumField
-            label="Cash on hand (starting balance for /cashflow)"
+            label="Cash on hand (starting balance for /cashflow — can be negative)"
             value={cash}
             onChange={setCash}
             onBlur={save}
+            allowNegative
           />
           <NumField
             label="Personal draw ($/mo)"
@@ -317,12 +318,14 @@ function NumField({
   onChange,
   onBlur,
   step = 1,
+  allowNegative = false,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
   onBlur: () => void;
   step?: number;
+  allowNegative?: boolean;
 }) {
   return (
     <label className="block">
@@ -333,7 +336,7 @@ function NumField({
         type="number"
         value={value}
         step={step}
-        min={0}
+        min={allowNegative ? undefined : 0}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
         onBlur={onBlur}
       />

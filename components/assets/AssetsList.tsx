@@ -190,13 +190,16 @@ function AssetRow({
 }) {
   const [isPending, startTransition] = useTransition();
   const value = assetValue(asset);
+  const isNegative = value < 0;
   const Icon = TYPE_ICON[asset.type];
   return (
     <li className="py-3 flex items-center gap-3">
       <div
         className={cn(
           "shrink-0 rounded-md p-1.5",
-          TYPE_TONE[asset.type]
+          isNegative
+            ? "bg-[var(--coral-bg)] text-[var(--coral)]"
+            : TYPE_TONE[asset.type]
         )}
       >
         <Icon size={14} aria-hidden />
@@ -233,8 +236,17 @@ function AssetRow({
         )}
       </div>
       <div className="text-right shrink-0">
-        <div className="font-mono text-sm font-medium">{fmtCurrency(value)}</div>
-        <div className="text-[10px] text-[var(--muted-foreground)]">value</div>
+        <div
+          className={cn(
+            "font-mono text-sm font-medium",
+            isNegative && "text-[var(--coral)]"
+          )}
+        >
+          {fmtCurrency(value)}
+        </div>
+        <div className="text-[10px] text-[var(--muted-foreground)]">
+          {isNegative ? "overdrawn" : "value"}
+        </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <Button variant="outline" size="sm" onClick={onEdit}>
@@ -415,7 +427,7 @@ function AssetForm({
             <Field
               label={
                 type === "bank_account"
-                  ? "Current balance ($)"
+                  ? "Current balance ($) — can be negative if overdrawn"
                   : "Total value ($)"
               }
             >
@@ -423,7 +435,6 @@ function AssetForm({
                 type="number"
                 name="balance"
                 step="0.01"
-                min="0"
                 required
                 value={balance}
                 onChange={(e) => setBalance(e.target.value)}
