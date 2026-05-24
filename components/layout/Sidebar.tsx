@@ -14,6 +14,7 @@ import {
   CalendarDays,
   PiggyBank,
   FolderKanban,
+  KeyRound,
   LogOut,
   Menu,
   X,
@@ -74,12 +75,21 @@ export function Sidebar({ email }: { email: string }) {
         Signed in as
       </div>
       <div className="mt-0.5 truncate text-xs">{email}</div>
-      <button
-        onClick={handleSignOut}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-[var(--border)] py-1.5 text-xs hover:bg-[var(--muted)] transition-colors"
-      >
-        <LogOut size={12} aria-hidden /> Sign out
-      </button>
+      <div className="mt-2 grid grid-cols-2 gap-1">
+        <Link
+          href="/account"
+          onClick={() => setOpen(false)}
+          className="flex items-center justify-center gap-1 rounded-md border border-[var(--border)] py-1.5 text-[11px] hover:bg-[var(--background)] transition-colors"
+        >
+          <KeyRound size={11} aria-hidden /> Account
+        </Link>
+        <button
+          onClick={handleSignOut}
+          className="flex items-center justify-center gap-1 rounded-md border border-[var(--border)] py-1.5 text-[11px] hover:bg-[var(--background)] transition-colors"
+        >
+          <LogOut size={11} aria-hidden /> Sign out
+        </button>
+      </div>
     </div>
   );
 
