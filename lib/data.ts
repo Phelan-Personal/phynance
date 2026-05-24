@@ -17,19 +17,36 @@ export const DEFAULT_SETTINGS = {
 
 export async function getOrCreateSettings(): Promise<FinancialSettings> {
   const { user, supabase } = await requireUser();
-  const { data } = await supabase
+
+  const { data, error } = await supabase
     .from("financial_settings")
     .select("*")
     .eq("user_id", user.id)
     .maybeSingle();
 
+  if (error) {
+    console.error("[settings] select failed:", error.message);
+  }
   if (data) return data as FinancialSettings;
 
-  const { data: created } = await supabase
+  const { data: created, error: insertError } = await supabase
     .from("financial_settings")
     .insert({ user_id: user.id, ...DEFAULT_SETTINGS })
     .select()
     .single();
 
-  return created as FinancialSettings;
+  if (insertError) {
+    console.error("[settings] insert failed:", insertError.message);
+  }
+  if (created) return created as FinancialSettings;
+
+  // Fallback so the UI never crashes if Supabase is unreachable
+  // or the schema hasn't been applied yet. Settings just won't persist
+  // until the underlying issue is fixed.
+  return {
+    id: "",
+    user_id: user.id,
+    ...DEFAULT_SETTINGS,
+    updated_at: new Date().toISOString(),
+  } as FinancialSettings;
 }
