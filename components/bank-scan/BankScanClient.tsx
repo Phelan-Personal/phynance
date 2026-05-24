@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Papa from "papaparse";
 import {
   Upload,
@@ -9,13 +9,31 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { cn, fmtCurrency } from "@/lib/utils";
-import { addExpense } from "@/app/(app)/expenses/actions";
+import { addExpense, addExpensesBulk } from "@/app/(app)/expenses/actions";
+import { saveBankScan } from "@/app/(app)/bank-scan/actions";
 
-type Txn = { raw: string; desc: string; amt: number; date?: string };
+type Txn = {
+  id: string;
+  raw: string;
+  desc: string;
+  amt: number;
+  date?: string;
+};
+
+type ParsedScan = {
+  filename: string | null;
+  parsedAt: number;
+  txns: Txn[];
+  dateRange: [string, string] | null;
+};
+
+const STORAGE_KEY = "phynance.bank_scan.v1";
 
 const CATEGORIES: Record<string, string[]> = {
   Subscriptions: [
@@ -88,11 +106,7 @@ function categorize(txns: Txn[]) {
   return { grouped, uncat };
 }
 
-function detectColumns(headers: string[]): {
-  amtIdx: number;
-  descIdx: number;
-  dateIdx: number;
-} {
+function detectColumns(headers: string[]) {
   const norm = headers.map((h) => h.toLowerCase().replace(/[^a-z]/g, ""));
   let amtIdx = -1;
   let descIdx = -1;
@@ -111,17 +125,58 @@ function detectColumns(headers: string[]): {
   };
 }
 
+function aggregateByMerchant(txns: Txn[]) {
+  const map = new Map<string, { name: string; total: number; count: number }>();
+  for (const t of txns) {
+    const key = t.raw.trim().slice(0, 80).toLowerCase() || "unknown";
+    const cur = map.get(key) ?? { name: t.raw.trim().slice(0, 80), total: 0, count: 0 };
+    cur.total += t.amt;
+    cur.count += 1;
+    map.set(key, cur);
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
 export function BankScanClient() {
-  const [filename, setFilename] = useState<string | null>(null);
-  const [txns, setTxns] = useState<Txn[] | null>(null);
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null);
+  const [scan, setScan] = useState<ParsedScan | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [topBanner, setTopBanner] = useState<
+    { kind: "ok" | "err"; text: string } | null
+  >(null);
+  const restoredRef = useRef(false);
+
+  // Restore last scan from sessionStorage so navigation doesn't blow it away
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ParsedScan;
+        if (parsed && Array.isArray(parsed.txns) && parsed.txns.length) {
+          setScan(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!scan) return;
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(scan));
+    } catch {
+      // ignore (quota / privacy mode)
+    }
+  }, [scan]);
 
   const handleFile = (file: File) => {
     setError(null);
-    setFilename(file.name);
+    setTopBanner(null);
     Papa.parse<string[]>(file, {
-      complete: (results) => {
+      complete: async (results) => {
         const rows = results.data.filter(
           (r) => Array.isArray(r) && r.length > 0 && r.some((c) => c)
         );
@@ -140,6 +195,7 @@ export function BankScanClient() {
           const amt = parseFloat(raw);
           if (!Number.isFinite(amt) || amt === 0) continue;
           parsed.push({
+            id: `${i}-${Math.random().toString(36).slice(2, 8)}`,
             raw: String(r[descIdx] ?? ""),
             desc: String(r[descIdx] ?? "").toLowerCase(),
             amt: Math.abs(amt),
@@ -157,24 +213,75 @@ export function BankScanClient() {
           .map((t) => t.date)
           .filter(Boolean)
           .sort() as string[];
-        setDateRange(
-          dates.length ? [dates[0], dates[dates.length - 1]] : null
-        );
-        setTxns(parsed);
+
+        const next: ParsedScan = {
+          filename: file.name,
+          parsedAt: Date.now(),
+          txns: parsed,
+          dateRange: dates.length
+            ? [dates[0], dates[dates.length - 1]]
+            : null,
+        };
+        setScan(next);
+        setAddedIds(new Set());
+
+        // Save scan summary to bank_scans (best-effort)
+        try {
+          const { grouped } = categorize(parsed);
+          const summary = Object.entries(grouped).map(([category, items]) => ({
+            category,
+            total: items.reduce((a, t) => a + t.amt, 0),
+            count: items.length,
+          }));
+          await saveBankScan({
+            filename: file.name,
+            totalTransactions: parsed.length,
+            totalOutflow: parsed.reduce((a, t) => a + t.amt, 0),
+            summary,
+          });
+        } catch (e) {
+          // non-fatal — scan still works locally
+          console.warn("Could not save scan summary:", e);
+        }
       },
       error: (e) => setError(String(e.message ?? e)),
     });
   };
 
-  const total = txns?.reduce((a, t) => a + t.amt, 0) ?? 0;
+  const markAdded = (ids: string[]) => {
+    setAddedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((i) => next.add(i));
+      return next;
+    });
+  };
+
+  const clearScan = () => {
+    setScan(null);
+    setAddedIds(new Set());
+    setTopBanner(null);
+    sessionStorage.removeItem(STORAGE_KEY);
+  };
+
+  const total = scan?.txns.reduce((a, t) => a + t.amt, 0) ?? 0;
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardTitle>Upload Bank Statement CSV</CardTitle>
+        <CardTitle
+          right={
+            scan && (
+              <Button variant="outline" size="sm" onClick={clearScan}>
+                Clear scan
+              </Button>
+            )
+          }
+        >
+          Upload Bank Statement CSV
+        </CardTitle>
         <p className="text-xs text-[var(--muted-foreground)] mb-3">
           Export transactions from your bank as CSV. Parsing happens entirely
-          in your browser — nothing is sent to a server.
+          in your browser; only an anonymized category summary is saved.
         </p>
         <label
           htmlFor="csv"
@@ -194,11 +301,16 @@ export function BankScanClient() {
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) handleFile(f);
+            e.target.value = ""; // allow same file re-upload
           }}
         />
-        {filename && (
+        {scan?.filename && (
           <div className="mt-3 text-[11px] text-[var(--muted-foreground)]">
-            Parsed: <span className="font-mono">{filename}</span>
+            Loaded: <span className="font-mono">{scan.filename}</span>
+            {" — "}
+            <span>
+              {new Date(scan.parsedAt).toLocaleString()}
+            </span>
           </div>
         )}
         {error && (
@@ -208,11 +320,32 @@ export function BankScanClient() {
         )}
       </Card>
 
-      {txns && txns.length > 0 && (
+      {topBanner && (
+        <div
+          className={cn(
+            "rounded-md border px-3 py-2 text-xs flex items-start gap-2",
+            topBanner.kind === "ok"
+              ? "bg-[var(--teal-bg)] border-[color:var(--teal)]/30 text-[var(--teal-dark)]"
+              : "bg-[var(--coral-bg)] border-[color:var(--coral)]/30 text-[var(--coral)]"
+          )}
+        >
+          {topBanner.kind === "ok" ? (
+            <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+          ) : (
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          )}
+          <span>{topBanner.text}</span>
+        </div>
+      )}
+
+      {scan && scan.txns.length > 0 && (
         <SpendingResults
-          txns={txns}
+          txns={scan.txns}
           total={total}
-          dateRange={dateRange}
+          dateRange={scan.dateRange}
+          addedIds={addedIds}
+          onAdded={markAdded}
+          onBanner={setTopBanner}
         />
       )}
     </div>
@@ -223,16 +356,26 @@ function SpendingResults({
   txns,
   total,
   dateRange,
+  addedIds,
+  onAdded,
+  onBanner,
 }: {
   txns: Txn[];
   total: number;
   dateRange: [string, string] | null;
+  addedIds: Set<string>;
+  onAdded: (ids: string[]) => void;
+  onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
-  const { grouped, uncat } = categorize(txns);
-  const sorted = Object.entries(grouped).sort(
-    (a, b) =>
-      b[1].reduce((s, t) => s + t.amt, 0) -
-      a[1].reduce((s, t) => s + t.amt, 0)
+  const { grouped, uncat } = useMemo(() => categorize(txns), [txns]);
+  const sorted = useMemo(
+    () =>
+      Object.entries(grouped).sort(
+        (a, b) =>
+          b[1].reduce((s, t) => s + t.amt, 0) -
+          a[1].reduce((s, t) => s + t.amt, 0)
+      ),
+    [grouped]
   );
   const subs = grouped["Subscriptions"];
   const subsTotal = subs?.reduce((a, t) => a + t.amt, 0) ?? 0;
@@ -261,7 +404,14 @@ function SpendingResults({
 
       <div className="space-y-2">
         {sorted.map(([cat, items]) => (
-          <CategorySection key={cat} category={cat} items={items} />
+          <CategorySection
+            key={cat}
+            category={cat}
+            items={items}
+            addedIds={addedIds}
+            onAdded={onAdded}
+            onBanner={onBanner}
+          />
         ))}
       </div>
 
@@ -279,49 +429,175 @@ function SpendingResults({
 function CategorySection({
   category,
   items,
+  addedIds,
+  onAdded,
+  onBanner,
 }: {
   category: string;
   items: Txn[];
+  addedIds: Set<string>;
+  onAdded: (ids: string[]) => void;
+  onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
   const [open, setOpen] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const total = items.reduce((a, t) => a + t.amt, 0);
-  const top = items.sort((a, b) => b.amt - a.amt).slice(0, 5);
-  const rest = items.length - top.length;
+  const sortedItems = useMemo(
+    () => [...items].sort((a, b) => b.amt - a.amt),
+    [items]
+  );
+  const visible = showAll ? sortedItems : sortedItems.slice(0, 5);
+  const rest = sortedItems.length - visible.length;
+  const merchants = useMemo(() => aggregateByMerchant(items), [items]);
+  const allAdded = items.every((t) => addedIds.has(t.id));
+
+  const personalCat = PERSONAL_CATEGORY_MAP[category] ?? "Other";
+
+  const addAllRaw = () => {
+    const toAdd = items.filter((t) => !addedIds.has(t.id));
+    if (!toAdd.length) return;
+    onBanner(null);
+    startTransition(async () => {
+      try {
+        const res = await addExpensesBulk(
+          toAdd.map((t) => ({
+            name: t.raw.trim().slice(0, 80) || category,
+            type: "personal" as const,
+            amount: t.amt,
+            category: personalCat,
+            is_recurring: false,
+          }))
+        );
+        onAdded(toAdd.map((t) => t.id));
+        onBanner({
+          kind: "ok",
+          text: `Added ${res.inserted} ${category} transactions to Personal Expenses.`,
+        });
+      } catch (e) {
+        onBanner({
+          kind: "err",
+          text: `Could not add expenses: ${(e as Error).message}`,
+        });
+      }
+    });
+  };
+
+  const addAsRecurringMerchants = () => {
+    onBanner(null);
+    startTransition(async () => {
+      try {
+        const res = await addExpensesBulk(
+          merchants.map((m) => ({
+            name: m.name,
+            type: "personal" as const,
+            amount: m.total / Math.max(1, m.count),
+            category: personalCat,
+            is_recurring: true,
+          }))
+        );
+        onBanner({
+          kind: "ok",
+          text: `Added ${res.inserted} ${category} merchants as recurring expenses (avg per charge).`,
+        });
+      } catch (e) {
+        onBanner({
+          kind: "err",
+          text: `Could not add expenses: ${(e as Error).message}`,
+        });
+      }
+    });
+  };
 
   return (
     <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between border-b border-[var(--border)] py-2 text-sm hover:bg-[var(--muted)] px-1"
-      >
-        <span className="flex items-center gap-2 font-medium">
+      <div className="flex items-center justify-between border-b border-[var(--border)] py-2 text-sm">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 font-medium hover:underline"
+        >
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           {category}{" "}
           <span className="font-normal text-[var(--muted-foreground)] text-[11px]">
             ({items.length})
           </span>
-        </span>
-        <span className="font-mono">{fmtCurrency(total)}</span>
-      </button>
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="font-mono">{fmtCurrency(total)}</span>
+        </div>
+      </div>
       {open && (
-        <div className="pl-5 pt-1 space-y-0.5">
-          {top.map((t, i) => (
-            <TxnRow key={i} txn={t} category={category} />
-          ))}
-          {rest > 0 && (
-            <div className="text-[10px] text-[var(--muted-foreground)] py-1 px-2">
-              +{rest} more
-            </div>
-          )}
+        <div className="pl-5 pt-2 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={addAllRaw}
+              disabled={isPending || allAdded}
+            >
+              {allAdded
+                ? "All added"
+                : `Add all ${items.length} as one-time expenses`}
+            </Button>
+            {category === "Subscriptions" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={addAsRecurringMerchants}
+                disabled={isPending}
+              >
+                Add {merchants.length} merchants as recurring
+              </Button>
+            )}
+          </div>
+          <div className="space-y-0.5">
+            {visible.map((t) => (
+              <TxnRow
+                key={t.id}
+                txn={t}
+                category={category}
+                added={addedIds.has(t.id)}
+                onAdded={(id) => onAdded([id])}
+                onBanner={onBanner}
+              />
+            ))}
+            {rest > 0 && (
+              <button
+                onClick={() => setShowAll(true)}
+                className="text-[11px] text-[var(--teal)] hover:underline py-1 px-2"
+              >
+                +{rest} more — show all
+              </button>
+            )}
+            {showAll && sortedItems.length > 5 && (
+              <button
+                onClick={() => setShowAll(false)}
+                className="text-[11px] text-[var(--muted-foreground)] hover:underline py-1 px-2"
+              >
+                Collapse
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function TxnRow({ txn, category }: { txn: Txn; category: string }) {
+function TxnRow({
+  txn,
+  category,
+  added,
+  onAdded,
+  onBanner,
+}: {
+  txn: Txn;
+  category: string;
+  added: boolean;
+  onAdded: (id: string) => void;
+  onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
+}) {
   const [isPending, startTransition] = useTransition();
-  const [added, setAdded] = useState(false);
 
   const addAsExpense = () => {
     const fd = new FormData();
@@ -329,9 +605,18 @@ function TxnRow({ txn, category }: { txn: Txn; category: string }) {
     fd.set("type", "personal");
     fd.set("amount", String(txn.amt));
     fd.set("category", PERSONAL_CATEGORY_MAP[category] ?? "Other");
+    fd.set("is_recurring", "false");
+    onBanner(null);
     startTransition(async () => {
-      await addExpense(fd);
-      setAdded(true);
+      try {
+        await addExpense(fd);
+        onAdded(txn.id);
+      } catch (e) {
+        onBanner({
+          kind: "err",
+          text: `Could not add expense: ${(e as Error).message}`,
+        });
+      }
     });
   };
 
@@ -353,7 +638,7 @@ function TxnRow({ txn, category }: { txn: Txn; category: string }) {
         aria-label="Add to expenses"
       >
         <Plus size={9} />
-        {added ? "Added" : "Add to Expenses"}
+        {added ? "Added" : "Add"}
       </button>
     </div>
   );

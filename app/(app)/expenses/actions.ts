@@ -14,17 +14,62 @@ export async function addExpense(formData: FormData) {
     | "personal";
   const amount = parseFloat(String(formData.get("amount") ?? "0")) || 0;
   const category = String(formData.get("category") ?? "").trim() || null;
-  if (!name || !amount) return;
+  const isRecurringRaw = String(formData.get("is_recurring") ?? "true");
+  const is_recurring = isRecurringRaw !== "false";
 
-  await supabase.from("expenses").insert({
+  if (!name) throw new Error("Name is required");
+  if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
+
+  const { error } = await supabase.from("expenses").insert({
     user_id: user.id,
     name,
     type,
     amount,
     category,
-    is_recurring: true,
+    is_recurring,
   });
+  if (error) {
+    console.error("[expenses] insert failed:", error.message);
+    throw new Error(error.message);
+  }
   reval();
+}
+
+export async function addExpensesBulk(
+  items: Array<{
+    name: string;
+    type: "personal" | "business";
+    amount: number;
+    category: string | null;
+    is_recurring?: boolean;
+  }>
+) {
+  const { user, supabase } = await requireUser();
+  if (!items.length) return { inserted: 0 };
+
+  const rows = items
+    .filter((i) => i.name && i.amount > 0)
+    .map((i) => ({
+      user_id: user.id,
+      name: i.name,
+      type: i.type,
+      amount: i.amount,
+      category: i.category,
+      is_recurring: i.is_recurring ?? true,
+    }));
+
+  if (!rows.length) return { inserted: 0 };
+
+  const { error, data } = await supabase
+    .from("expenses")
+    .insert(rows)
+    .select("id");
+  if (error) {
+    console.error("[expenses] bulk insert failed:", error.message);
+    throw new Error(error.message);
+  }
+  reval();
+  return { inserted: data?.length ?? rows.length };
 }
 
 export async function deleteExpense(id: string) {
