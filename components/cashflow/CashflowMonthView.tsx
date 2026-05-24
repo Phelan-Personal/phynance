@@ -132,6 +132,20 @@ export function CashflowMonthView({
     balance: Math.round(p.endBalance),
   }));
 
+  // Gradient offset so the fill/stroke switch colors at y = 0.
+  // 0 means the line never goes positive (all red), 1 means it never
+  // goes negative (all teal), anything in between is the % of vertical
+  // chart space the positive region occupies.
+  const balances = chartData.map((d) => d.balance);
+  const dataMax = Math.max(...balances, 0);
+  const dataMin = Math.min(...balances, 0);
+  const gradientOffset =
+    dataMax <= 0
+      ? 0
+      : dataMin >= 0
+        ? 1
+        : dataMax / (dataMax - dataMin);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -230,9 +244,39 @@ export function CashflowMonthView({
               margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
             >
               <defs>
-                <linearGradient id="balGood" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#1D9E75" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#1D9E75" stopOpacity={0} />
+                <linearGradient id="balSplit" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="0%"
+                    stopColor="#1D9E75"
+                    stopOpacity={0.4}
+                  />
+                  <stop
+                    offset={`${gradientOffset * 100}%`}
+                    stopColor="#1D9E75"
+                    stopOpacity={0}
+                  />
+                  <stop
+                    offset={`${gradientOffset * 100}%`}
+                    stopColor="#D85A30"
+                    stopOpacity={0}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor="#D85A30"
+                    stopOpacity={0.4}
+                  />
+                </linearGradient>
+                <linearGradient id="balStroke" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#1D9E75" />
+                  <stop
+                    offset={`${gradientOffset * 100}%`}
+                    stopColor="#1D9E75"
+                  />
+                  <stop
+                    offset={`${gradientOffset * 100}%`}
+                    stopColor="#D85A30"
+                  />
+                  <stop offset="100%" stopColor="#D85A30" />
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
@@ -321,8 +365,8 @@ export function CashflowMonthView({
               <Area
                 type="monotone"
                 dataKey="balance"
-                stroke="#1D9E75"
-                fill="url(#balGood)"
+                stroke="url(#balStroke)"
+                fill="url(#balSplit)"
                 strokeWidth={2}
               />
             </AreaChart>
