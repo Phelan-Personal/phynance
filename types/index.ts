@@ -92,7 +92,17 @@ export type Expense = {
   due_day: number | null;
   frequency: ExpenseFrequency;
   due_month: number | null; // 1-12, only for annual/quarterly
+  project_id: string | null;
   is_recurring: boolean;
+  created_at: string;
+};
+
+export type Project = {
+  id: string;
+  user_id: string;
+  name: string;
+  notes: string | null;
+  is_archived: boolean;
   created_at: string;
 };
 
@@ -107,6 +117,7 @@ export type ExpenseTransaction = {
   category: string | null;
   occurred_on: string; // YYYY-MM-DD
   source: ExpenseTransactionSource;
+  project_id: string | null;
   created_at: string;
 };
 

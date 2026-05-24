@@ -13,6 +13,7 @@ import type {
   Expense,
   ExpenseFrequency,
   ExpenseHistory,
+  Project,
 } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -79,9 +80,11 @@ function fmtMonthLabel(iso: string) {
 export function ExpensesTabs({
   expenses,
   history,
+  projects,
 }: {
   expenses: Expense[];
   history: ExpenseHistory[];
+  projects: Project[];
 }) {
   const [tab, setTab] = useState<Tab>("business");
   const [grouped, setGrouped] = useState(false);
@@ -89,10 +92,27 @@ export function ExpensesTabs({
   const [banner, setBanner] = useState<
     { kind: "ok" | "err"; text: string } | null
   >(null);
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+
+  const projectsById = useMemo(() => {
+    const m = new Map<string, Project>();
+    for (const p of projects) m.set(p.id, p);
+    return m;
+  }, [projects]);
+  const activeProjects = useMemo(
+    () => projects.filter((p) => !p.is_archived),
+    [projects]
+  );
 
   const filtered = useMemo(
-    () => expenses.filter((e) => e.type === tab),
-    [expenses, tab]
+    () =>
+      expenses.filter((e) => {
+        if (e.type !== tab) return false;
+        if (projectFilter === "all") return true;
+        if (projectFilter === "none") return !e.project_id;
+        return e.project_id === projectFilter;
+      }),
+    [expenses, tab, projectFilter]
   );
   const monthlyOnes = filtered.filter((e) => e.frequency === "monthly");
   const variableOnes = filtered.filter((e) => e.frequency === "variable");
@@ -105,7 +125,7 @@ export function ExpensesTabs({
     (a, e) => a + variableAverage(e, history),
     0
   );
-  const annualTotal = lessFrequent.reduce(
+  const annualYearlyTotal = lessFrequent.reduce(
     (a, e) =>
       a +
       Number(e.amount) * (e.frequency === "annual" ? 1 : 4),
@@ -115,14 +135,16 @@ export function ExpensesTabs({
     (a, e) => a + monthlyAmortized(e),
     0
   );
-  const totalMonthlyEquivalent =
+  const monthlyPlusAnnualSubtotal = monthlyTotal + amortizedFromLessFrequent;
+  const grandTotalMonthly =
     monthlyTotal + variableMonthlyEquivalent + amortizedFromLessFrequent;
+  const grandTotalYearly = grandTotalMonthly * 12;
 
   const cats = tab === "business" ? BIZ_CATEGORIES : PERS_CATEGORIES;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex rounded-md border border-[var(--border)] p-0.5">
           {(["business", "personal"] as Tab[]).map((t) => (
             <button
@@ -139,14 +161,34 @@ export function ExpensesTabs({
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
-          <input
-            type="checkbox"
-            checked={grouped}
-            onChange={(e) => setGrouped(e.target.checked)}
-          />
-          Group monthly by category
-        </label>
+        <div className="flex items-center gap-3 flex-wrap">
+          {projects.length > 0 && (
+            <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+              <span>Project:</span>
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="!w-auto !py-1 !text-xs"
+              >
+                <option value="all">All</option>
+                <option value="none">No project</option>
+                {activeProjects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+            <input
+              type="checkbox"
+              checked={grouped}
+              onChange={(e) => setGrouped(e.target.checked)}
+            />
+            Group monthly by category
+          </label>
+        </div>
       </div>
 
       {banner && (
@@ -180,14 +222,14 @@ export function ExpensesTabs({
         />
         <SummaryCell
           label="Annual + quarterly"
-          value={fmtCurrency(annualTotal)}
+          value={`${fmtCurrency(annualYearlyTotal)}/yr`}
           sub={`${lessFrequent.length} item${lessFrequent.length === 1 ? "" : "s"} • ${fmtCurrency(amortizedFromLessFrequent)}/mo amortized`}
         />
         <SummaryCell
-          label="Effective monthly total"
-          value={`${fmtCurrency(totalMonthlyEquivalent)}/mo`}
+          label="Grand total"
+          value={`${fmtCurrency(grandTotalMonthly)}/mo`}
           tone="primary"
-          sub="used in the cashflow waterfall"
+          sub={`${fmtCurrency(grandTotalYearly)}/yr · all expenses combined`}
         />
       </div>
 
@@ -205,6 +247,7 @@ export function ExpensesTabs({
         ) : grouped ? (
           <GroupedList
             expenses={monthlyOnes}
+            projectsById={projectsById}
             onEdit={setEditing}
             onBanner={setBanner}
           />
@@ -214,6 +257,7 @@ export function ExpensesTabs({
               <ExpenseRow
                 key={e.id}
                 expense={e}
+                projectName={getProjectName(e.project_id)}
                 onEdit={() => setEditing(e)}
                 onBanner={setBanner}
               />
@@ -222,11 +266,31 @@ export function ExpensesTabs({
         )}
 
         {monthlyOnes.length > 0 && (
-          <div className="mt-3 border-t border-[var(--border)] pt-2 flex justify-between text-sm">
-            <span className="text-[var(--muted-foreground)]">Total / mo</span>
-            <span className="font-mono font-medium">
-              {fmtCurrency(monthlyTotal)}
-            </span>
+          <div className="mt-3 border-t border-[var(--border)] pt-2 space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[var(--muted-foreground)]">Total / mo</span>
+              <span className="font-mono font-medium">
+                {fmtCurrency(monthlyTotal)}
+              </span>
+            </div>
+            {lessFrequent.length > 0 && (
+              <div className="flex justify-between text-[11px] text-[var(--muted-foreground)]">
+                <span>+ annual & quarterly (amortized)</span>
+                <span className="font-mono">
+                  {fmtCurrency(amortizedFromLessFrequent)}
+                </span>
+              </div>
+            )}
+            {lessFrequent.length > 0 && (
+              <div className="flex justify-between border-t border-[var(--border)] pt-1">
+                <span className="text-[var(--muted-foreground)]">
+                  Subtotal (monthly + amortized annual)
+                </span>
+                <span className="font-mono font-medium">
+                  {fmtCurrency(monthlyPlusAnnualSubtotal)}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -259,6 +323,7 @@ export function ExpensesTabs({
                 key={e.id}
                 expense={e}
                 history={history}
+                projectName={getProjectName(e.project_id)}
                 onEdit={() => setEditing(e)}
                 onBanner={setBanner}
               />
@@ -294,6 +359,7 @@ export function ExpensesTabs({
                 key={e.id}
                 expense={e}
                 showAmortized
+                projectName={getProjectName(e.project_id)}
                 onEdit={() => setEditing(e)}
                 onBanner={setBanner}
               />
@@ -301,15 +367,44 @@ export function ExpensesTabs({
           </ul>
         )}
         {lessFrequent.length > 0 && (
-          <div className="mt-3 border-t border-[var(--border)] pt-2 flex justify-between text-sm">
-            <span className="text-[var(--muted-foreground)]">
-              Amortized / mo
-            </span>
-            <span className="font-mono font-medium">
-              {fmtCurrency(amortizedFromLessFrequent)}
-            </span>
+          <div className="mt-3 border-t border-[var(--border)] pt-2 space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[var(--muted-foreground)]">
+                Total / yr
+              </span>
+              <span className="font-mono font-medium">
+                {fmtCurrency(annualYearlyTotal)}
+              </span>
+            </div>
+            <div className="flex justify-between text-[11px] text-[var(--muted-foreground)]">
+              <span>Amortized / mo</span>
+              <span className="font-mono">
+                {fmtCurrency(amortizedFromLessFrequent)}
+              </span>
+            </div>
           </div>
         )}
+      </Card>
+
+      <Card className="border-[color:var(--teal)]/40 bg-[var(--teal-bg)]/40">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--teal-dark)]/80">
+              Grand total ({tab})
+            </div>
+            <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
+              monthly + variable avg + annual amortized
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-xl font-semibold text-[var(--teal-dark)]">
+              {fmtCurrency(grandTotalMonthly)}/mo
+            </div>
+            <div className="text-[11px] font-mono text-[var(--teal-dark)]/80">
+              {fmtCurrency(grandTotalYearly)}/yr
+            </div>
+          </div>
+        </div>
       </Card>
 
       <Card>
@@ -317,6 +412,7 @@ export function ExpensesTabs({
         <AddExpenseForm
           tab={tab}
           categories={cats}
+          projects={activeProjects}
           onAdded={() => setBanner({ kind: "ok", text: "Added." })}
           onError={(msg) =>
             setBanner({ kind: "err", text: `Couldn't add: ${msg}` })
@@ -328,22 +424,30 @@ export function ExpensesTabs({
         <EditExpenseModal
           expense={editing}
           categories={editing.type === "business" ? BIZ_CATEGORIES : PERS_CATEGORIES}
+          projects={projects}
           onClose={() => setEditing(null)}
           onBanner={setBanner}
         />
       )}
     </div>
   );
+
+  function getProjectName(id: string | null): string | null {
+    if (!id) return null;
+    return projectsById.get(id)?.name ?? null;
+  }
 }
 
 function AddExpenseForm({
   tab,
   categories,
+  projects,
   onAdded,
   onError,
 }: {
   tab: Tab;
   categories: string[];
+  projects: Project[];
   onAdded: () => void;
   onError: (msg: string) => void;
 }) {
@@ -475,6 +579,22 @@ function AddExpenseForm({
         </label>
       </div>
 
+      {projects.length > 0 && (
+        <label className="block">
+          <div className="text-[11px] text-[var(--muted-foreground)] mb-1">
+            Project (optional)
+          </div>
+          <select name="project_id" defaultValue="none">
+            <option value="none">No project</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       {frequency === "variable" && (
         <div className="rounded-md bg-[var(--muted)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
           Set a baseline that's used until you log actuals. After saving,
@@ -501,11 +621,13 @@ function AddExpenseForm({
 function ExpenseRow({
   expense,
   showAmortized,
+  projectName,
   onEdit,
   onBanner,
 }: {
   expense: Expense;
   showAmortized?: boolean;
+  projectName?: string | null;
   onEdit: () => void;
   onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
@@ -514,7 +636,14 @@ function ExpenseRow({
   return (
     <li className="flex items-center gap-3 py-2.5">
       <div className="flex-1 min-w-0">
-        <div className="text-sm truncate">{expense.name}</div>
+        <div className="text-sm truncate flex items-center gap-2">
+          <span className="truncate">{expense.name}</span>
+          {projectName && (
+            <span className="shrink-0 rounded bg-[var(--blue-bg)] text-[var(--blue-fg)] px-1.5 py-0.5 text-[10px] font-medium">
+              {projectName}
+            </span>
+          )}
+        </div>
         <div className="text-[11px] text-[var(--muted-foreground)] flex items-center gap-2 flex-wrap">
           <span>{expense.category || "General"}</span>
           {expense.due_day && <span>· day {expense.due_day}</span>}
@@ -581,11 +710,13 @@ function ExpenseRow({
 function VariableExpenseRow({
   expense,
   history,
+  projectName,
   onEdit,
   onBanner,
 }: {
   expense: Expense;
   history: ExpenseHistory[];
+  projectName?: string | null;
   onEdit: () => void;
   onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
@@ -604,7 +735,14 @@ function VariableExpenseRow({
     <li className="py-3 space-y-2">
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{expense.name}</div>
+          <div className="text-sm font-medium truncate flex items-center gap-2">
+            <span className="truncate">{expense.name}</span>
+            {projectName && (
+              <span className="shrink-0 rounded bg-[var(--blue-bg)] text-[var(--blue-fg)] px-1.5 py-0.5 text-[10px] font-medium">
+                {projectName}
+              </span>
+            )}
+          </div>
           <div className="text-[11px] text-[var(--muted-foreground)] flex items-center gap-2 flex-wrap">
             <span>{expense.category || "General"}</span>
             {expense.due_day && <span>· day {expense.due_day}</span>}
@@ -720,10 +858,12 @@ function MonthlyAmountCell({
 
 function GroupedList({
   expenses,
+  projectsById,
   onEdit,
   onBanner,
 }: {
   expenses: Expense[];
+  projectsById: Map<string, Project>;
   onEdit: (e: Expense) => void;
   onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
@@ -757,6 +897,9 @@ function GroupedList({
                 <ExpenseRow
                   key={e.id}
                   expense={e}
+                  projectName={
+                    e.project_id ? (projectsById.get(e.project_id)?.name ?? null) : null
+                  }
                   onEdit={() => onEdit(e)}
                   onBanner={onBanner}
                 />
@@ -772,11 +915,13 @@ function GroupedList({
 function EditExpenseModal({
   expense,
   categories,
+  projects,
   onClose,
   onBanner,
 }: {
   expense: Expense;
   categories: string[];
+  projects: Project[];
   onClose: () => void;
   onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
@@ -916,6 +1061,21 @@ function EditExpenseModal({
                 !categories.includes(expense.category) && (
                   <option>{expense.category}</option>
                 )}
+            </select>
+          </Field>
+
+          <Field label="Project (optional)">
+            <select
+              name="project_id"
+              defaultValue={expense.project_id ?? "none"}
+            >
+              <option value="none">No project</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.is_archived ? " (archived)" : ""}
+                </option>
+              ))}
             </select>
           </Field>
 

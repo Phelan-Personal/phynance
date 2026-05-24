@@ -92,6 +92,7 @@ create table if not exists expenses (
   frequency text check (frequency in ('monthly', 'annual', 'quarterly', 'variable'))
     not null default 'monthly',
   due_month int check (due_month between 1 and 12),  -- only for annual/quarterly
+  project_id uuid references projects on delete set null,
   is_recurring boolean default true,
   created_at timestamptz default now()
 );
@@ -120,6 +121,19 @@ create table if not exists expense_transactions (
   category text,
   occurred_on date not null,
   source text not null default 'manual',  -- 'manual' or 'bank_scan'
+  project_id uuid references projects on delete set null,
+  created_at timestamptz default now()
+);
+
+-- =============================================
+-- PROJECTS (cost centers)
+-- =============================================
+create table if not exists projects (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  name text not null,
+  notes text,
+  is_archived boolean default false,
   created_at timestamptz default now()
 );
 
@@ -172,6 +186,7 @@ alter table debts enable row level security;
 alter table expenses enable row level security;
 alter table expense_transactions enable row level security;
 alter table expense_history enable row level security;
+alter table projects enable row level security;
 alter table assets enable row level security;
 alter table bank_scans enable row level security;
 
@@ -214,6 +229,12 @@ create policy "Users can only access their own expense_transactions"
 drop policy if exists "Users can only access their own expense_history" on expense_history;
 create policy "Users can only access their own expense_history"
   on expense_history for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can only access their own projects" on projects;
+create policy "Users can only access their own projects"
+  on projects for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 

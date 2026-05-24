@@ -1,16 +1,26 @@
 import { requireUser } from "@/lib/auth";
-import type { Expense, ExpenseHistory } from "@/types";
+import type { Expense, ExpenseHistory, Project } from "@/types";
 import { ExpensesTabs } from "@/components/expenses/ExpensesTabs";
 
 export default async function ExpensesPage() {
   const { user, supabase } = await requireUser();
-  const [{ data: expenses }, { data: history }] = await Promise.all([
+  const [
+    { data: expenses },
+    { data: history },
+    { data: projects },
+  ] = await Promise.all([
     supabase
       .from("expenses")
       .select("*")
       .eq("user_id", user.id)
       .order("amount", { ascending: false }),
     supabase.from("expense_history").select("*").eq("user_id", user.id),
+    supabase
+      .from("projects")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("is_archived", { ascending: true })
+      .order("name", { ascending: true }),
   ]);
 
   return (
@@ -24,6 +34,7 @@ export default async function ExpensesPage() {
       <ExpensesTabs
         expenses={(expenses ?? []) as Expense[]}
         history={(history ?? []) as ExpenseHistory[]}
+        projects={(projects ?? []) as Project[]}
       />
     </div>
   );

@@ -48,6 +48,8 @@ export async function addExpense(formData: FormData) {
     frequency === "annual" || frequency === "quarterly"
       ? parseMonth(formData.get("due_month"))
       : null;
+  const projectRaw = String(formData.get("project_id") ?? "").trim();
+  const project_id = projectRaw && projectRaw !== "none" ? projectRaw : null;
 
   if (!name) throw new Error("Name is required");
   if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
@@ -61,6 +63,7 @@ export async function addExpense(formData: FormData) {
     due_day,
     frequency,
     due_month,
+    project_id,
     is_recurring,
   });
   if (error) {
@@ -123,13 +126,24 @@ export async function updateExpense(formData: FormData) {
     frequency === "annual" || frequency === "quarterly"
       ? parseMonth(formData.get("due_month"))
       : null;
+  const projectRaw = String(formData.get("project_id") ?? "").trim();
+  const project_id = projectRaw && projectRaw !== "none" ? projectRaw : null;
 
   if (!name) throw new Error("Name is required");
   if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
 
   const { error } = await supabase
     .from("expenses")
-    .update({ name, type, amount, category, due_day, frequency, due_month })
+    .update({
+      name,
+      type,
+      amount,
+      category,
+      due_day,
+      frequency,
+      due_month,
+      project_id,
+    })
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) {
