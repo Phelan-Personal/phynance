@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 
+const PATHS = ["/", "/bank-scan", "/expenses", "/income"];
+const reval = () => PATHS.forEach((p) => revalidatePath(p));
+
 export type BankScanSummaryRow = {
   category: string;
   total: number;
@@ -39,17 +42,64 @@ export async function saveBankScan(input: {
   return { id: data.id };
 }
 
-export async function listBankScans() {
+export type TxnImportItem = {
+  name: string;
+  type: "personal" | "business";
+  amount: number;
+  category: string | null;
+  occurred_on: string; // YYYY-MM-DD
+};
+
+export async function addTransactionsFromScan(items: TxnImportItem[]) {
+  const { user, supabase } = await requireUser();
+  const rows = items
+    .filter((i) => i.name && i.amount > 0 && i.occurred_on)
+    .map((i) => ({
+      user_id: user.id,
+      name: i.name,
+      type: i.type,
+      amount: i.amount,
+      category: i.category,
+      occurred_on: i.occurred_on,
+      source: "bank_scan",
+    }));
+  if (!rows.length) return { inserted: 0 };
+
+  const { error, data } = await supabase
+    .from("expense_transactions")
+    .insert(rows)
+    .select("id");
+  if (error) {
+    console.error("[expense_transactions] insert failed:", error.message);
+    throw new Error(error.message);
+  }
+  reval();
+  return { inserted: data?.length ?? rows.length };
+}
+
+export async function listRecentTransactions(limit = 50) {
   const { user, supabase } = await requireUser();
   const { data, error } = await supabase
-    .from("bank_scans")
+    .from("expense_transactions")
     .select("*")
     .eq("user_id", user.id)
-    .order("scanned_at", { ascending: false })
-    .limit(10);
+    .order("occurred_on", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
   if (error) {
-    console.error("[bank_scans] list failed:", error.message);
+    console.error("[expense_transactions] list failed:", error.message);
     return [];
   }
   return data ?? [];
+}
+
+export async function deleteTransaction(id: string) {
+  const { user, supabase } = await requireUser();
+  const { error } = await supabase
+    .from("expense_transactions")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  reval();
 }

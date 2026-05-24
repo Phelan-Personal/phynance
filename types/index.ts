@@ -76,6 +76,20 @@ export type Expense = {
   created_at: string;
 };
 
+export type ExpenseTransactionSource = "manual" | "bank_scan";
+
+export type ExpenseTransaction = {
+  id: string;
+  user_id: string;
+  name: string;
+  type: ExpenseType;
+  amount: number;
+  category: string | null;
+  occurred_on: string; // YYYY-MM-DD
+  source: ExpenseTransactionSource;
+  created_at: string;
+};
+
 export type BankScanCategorySummary = Record<
   string,
   { total: number; count: number }

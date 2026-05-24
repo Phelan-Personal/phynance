@@ -88,6 +88,21 @@ create table if not exists expenses (
 );
 
 -- =============================================
+-- EXPENSE TRANSACTIONS (dated single-charge events)
+-- =============================================
+create table if not exists expense_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  name text not null,
+  type text check (type in ('personal', 'business')) not null,
+  amount numeric not null default 0,
+  category text,
+  occurred_on date not null,
+  source text not null default 'manual',  -- 'manual' or 'bank_scan'
+  created_at timestamptz default now()
+);
+
+-- =============================================
 -- BANK SCAN SESSIONS (optional persistence)
 -- =============================================
 create table if not exists bank_scans (
@@ -118,6 +133,7 @@ alter table income_history enable row level security;
 alter table financial_settings enable row level security;
 alter table debts enable row level security;
 alter table expenses enable row level security;
+alter table expense_transactions enable row level security;
 alter table bank_scans enable row level security;
 
 drop policy if exists "Users can only access their own income_streams" on income_streams;
@@ -147,6 +163,12 @@ create policy "Users can only access their own debts"
 drop policy if exists "Users can only access their own expenses" on expenses;
 create policy "Users can only access their own expenses"
   on expenses for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can only access their own expense_transactions" on expense_transactions;
+create policy "Users can only access their own expense_transactions"
+  on expense_transactions for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 

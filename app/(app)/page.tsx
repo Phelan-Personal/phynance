@@ -11,9 +11,12 @@ import type {
   Debt,
   Expense,
   IncomeStream,
+  IncomeHistory,
+  ExpenseTransaction,
   FinancialSettings,
 } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
+import { CashflowHistoryChart } from "@/components/dashboard/CashflowHistoryChart";
 import {
   calcAutoExtra,
   calcDTI,
@@ -48,17 +51,26 @@ export default async function DashboardPage() {
     { data: debtsData },
     { data: expensesData },
     { data: streamsData },
+    { data: incomeHistoryData },
+    { data: transactionsData },
     settings,
   ] = await Promise.all([
     supabase.from("debts").select("*").eq("user_id", user.id),
     supabase.from("expenses").select("*").eq("user_id", user.id),
     supabase.from("income_streams").select("*").eq("user_id", user.id),
+    supabase.from("income_history").select("*").eq("user_id", user.id),
+    supabase
+      .from("expense_transactions")
+      .select("*")
+      .eq("user_id", user.id),
     getOrCreateSettings(),
   ]);
 
   const debts = (debtsData ?? []) as Debt[];
   const expenses = (expensesData ?? []) as Expense[];
   const streams = (streamsData ?? []) as IncomeStream[];
+  const incomeHistory = (incomeHistoryData ?? []) as IncomeHistory[];
+  const transactions = (transactionsData ?? []) as ExpenseTransaction[];
 
   const grossMonthly = streams.reduce(
     (a, s) => a + Number(s.avg_monthly || 0),
@@ -203,6 +215,22 @@ export default async function DashboardPage() {
           )}) is above the 43% lending threshold. Pay off debt before applying for a mortgage.`}
         />
       )}
+
+      {/* Cashflow over time */}
+      <Card>
+        <CardTitle>Monthly Cashflow (last 12 months)</CardTitle>
+        <CashflowHistoryChart
+          income={incomeHistory}
+          transactions={transactions}
+          recurringMonthlyExpenseEstimate={bizExpenses + persExpenses}
+          monthlyDebtMins={totalMins}
+        />
+        <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
+          Income comes from logged monthly actuals on /income. Outflow
+          includes dated transactions plus a flat estimate from your recurring
+          expenses and debt minimums for each month.
+        </p>
+      </Card>
 
       {/* Burndown chart */}
       <Card>

@@ -11,19 +11,27 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { cn, fmtCurrency } from "@/lib/utils";
-import { addExpense, addExpensesBulk } from "@/app/(app)/expenses/actions";
-import { saveBankScan } from "@/app/(app)/bank-scan/actions";
+import { toIsoDate, todayIso } from "@/lib/dates";
+import { addExpensesBulk } from "@/app/(app)/expenses/actions";
+import {
+  addTransactionsFromScan,
+  deleteTransaction,
+  saveBankScan,
+  type TxnImportItem,
+} from "@/app/(app)/bank-scan/actions";
+import type { ExpenseTransaction } from "@/types";
 
 type Txn = {
   id: string;
   raw: string;
   desc: string;
   amt: number;
-  date?: string;
+  date?: string; // ISO YYYY-MM-DD
 };
 
 type ParsedScan = {
@@ -33,7 +41,9 @@ type ParsedScan = {
   dateRange: [string, string] | null;
 };
 
-const STORAGE_KEY = "phynance.bank_scan.v1";
+type DefaultType = "personal" | "business";
+
+const STORAGE_KEY = "phynance.bank_scan.v2";
 
 const CATEGORIES: Record<string, string[]> = {
   Subscriptions: [
@@ -89,6 +99,17 @@ const PERSONAL_CATEGORY_MAP: Record<string, string> = {
   "Gym/Health": "Healthcare",
 };
 
+const BUSINESS_CATEGORY_MAP: Record<string, string> = {
+  Subscriptions: "Subscriptions",
+  Insurance: "Insurance",
+  "Phone/Internet": "Software/Tools",
+};
+
+function categoryFor(scanCat: string, t: DefaultType): string {
+  if (t === "business") return BUSINESS_CATEGORY_MAP[scanCat] ?? "Other";
+  return PERSONAL_CATEGORY_MAP[scanCat] ?? "Other";
+}
+
 function categorize(txns: Txn[]) {
   const grouped: Record<string, Txn[]> = {};
   const uncat: Txn[] = [];
@@ -137,16 +158,20 @@ function aggregateByMerchant(txns: Txn[]) {
   return [...map.values()].sort((a, b) => b.total - a.total);
 }
 
-export function BankScanClient() {
+export function BankScanClient({
+  initialRecentTransactions,
+}: {
+  initialRecentTransactions: ExpenseTransaction[];
+}) {
   const [scan, setScan] = useState<ParsedScan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [defaultType, setDefaultType] = useState<DefaultType>("personal");
   const [topBanner, setTopBanner] = useState<
     { kind: "ok" | "err"; text: string } | null
   >(null);
   const restoredRef = useRef(false);
 
-  // Restore last scan from sessionStorage so navigation doesn't blow it away
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
@@ -168,7 +193,7 @@ export function BankScanClient() {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(scan));
     } catch {
-      // ignore (quota / privacy mode)
+      // ignore
     }
   }, [scan]);
 
@@ -199,7 +224,7 @@ export function BankScanClient() {
             raw: String(r[descIdx] ?? ""),
             desc: String(r[descIdx] ?? "").toLowerCase(),
             amt: Math.abs(amt),
-            date: r[dateIdx] ? String(r[dateIdx]) : undefined,
+            date: r[dateIdx] ? toIsoDate(String(r[dateIdx])) : undefined,
           });
         }
         if (parsed.length === 0) {
@@ -225,7 +250,6 @@ export function BankScanClient() {
         setScan(next);
         setAddedIds(new Set());
 
-        // Save scan summary to bank_scans (best-effort)
         try {
           const { grouped } = categorize(parsed);
           const summary = Object.entries(grouped).map(([category, items]) => ({
@@ -240,7 +264,6 @@ export function BankScanClient() {
             summary,
           });
         } catch (e) {
-          // non-fatal — scan still works locally
           console.warn("Could not save scan summary:", e);
         }
       },
@@ -281,7 +304,8 @@ export function BankScanClient() {
         </CardTitle>
         <p className="text-xs text-[var(--muted-foreground)] mb-3">
           Export transactions from your bank as CSV. Parsing happens entirely
-          in your browser; only an anonymized category summary is saved.
+          in your browser; only the resulting transactions and a summary are
+          saved to your account.
         </p>
         <label
           htmlFor="csv"
@@ -301,16 +325,14 @@ export function BankScanClient() {
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) handleFile(f);
-            e.target.value = ""; // allow same file re-upload
+            e.target.value = "";
           }}
         />
         {scan?.filename && (
           <div className="mt-3 text-[11px] text-[var(--muted-foreground)]">
             Loaded: <span className="font-mono">{scan.filename}</span>
             {" — "}
-            <span>
-              {new Date(scan.parsedAt).toLocaleString()}
-            </span>
+            <span>{new Date(scan.parsedAt).toLocaleString()}</span>
           </div>
         )}
         {error && (
@@ -344,10 +366,14 @@ export function BankScanClient() {
           total={total}
           dateRange={scan.dateRange}
           addedIds={addedIds}
+          defaultType={defaultType}
+          setDefaultType={setDefaultType}
           onAdded={markAdded}
           onBanner={setTopBanner}
         />
       )}
+
+      <RecentImports transactions={initialRecentTransactions} />
     </div>
   );
 }
@@ -357,6 +383,8 @@ function SpendingResults({
   total,
   dateRange,
   addedIds,
+  defaultType,
+  setDefaultType,
   onAdded,
   onBanner,
 }: {
@@ -364,6 +392,8 @@ function SpendingResults({
   total: number;
   dateRange: [string, string] | null;
   addedIds: Set<string>;
+  defaultType: DefaultType;
+  setDefaultType: (t: DefaultType) => void;
   onAdded: (ids: string[]) => void;
   onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
@@ -382,7 +412,33 @@ function SpendingResults({
 
   return (
     <Card>
-      <CardTitle>Spending Analysis</CardTitle>
+      <CardTitle
+        right={
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-[var(--muted-foreground)]">
+              Add as:
+            </span>
+            <div className="flex rounded-md border border-[var(--border)] p-0.5 text-xs">
+              {(["personal", "business"] as DefaultType[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setDefaultType(t)}
+                  className={cn(
+                    "px-2 py-0.5 rounded-sm capitalize transition-colors",
+                    defaultType === t
+                      ? "bg-[var(--muted)] font-medium"
+                      : "text-[var(--muted-foreground)]"
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        }
+      >
+        Spending Analysis
+      </CardTitle>
       <div className="text-xs text-[var(--muted-foreground)] mb-3">
         {txns.length} transactions · {fmtCurrency(total)} total outflow
         {dateRange && (
@@ -409,6 +465,7 @@ function SpendingResults({
             category={cat}
             items={items}
             addedIds={addedIds}
+            defaultType={defaultType}
             onAdded={onAdded}
             onBanner={onBanner}
           />
@@ -430,12 +487,14 @@ function CategorySection({
   category,
   items,
   addedIds,
+  defaultType,
   onAdded,
   onBanner,
 }: {
   category: string;
   items: Txn[];
   addedIds: Set<string>;
+  defaultType: DefaultType;
   onAdded: (ids: string[]) => void;
   onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
@@ -451,33 +510,31 @@ function CategorySection({
   const rest = sortedItems.length - visible.length;
   const merchants = useMemo(() => aggregateByMerchant(items), [items]);
   const allAdded = items.every((t) => addedIds.has(t.id));
+  const resolvedCategory = categoryFor(category, defaultType);
 
-  const personalCat = PERSONAL_CATEGORY_MAP[category] ?? "Other";
-
-  const addAllRaw = () => {
+  const addAllAsTransactions = () => {
     const toAdd = items.filter((t) => !addedIds.has(t.id));
     if (!toAdd.length) return;
     onBanner(null);
     startTransition(async () => {
       try {
-        const res = await addExpensesBulk(
-          toAdd.map((t) => ({
-            name: t.raw.trim().slice(0, 80) || category,
-            type: "personal" as const,
-            amount: t.amt,
-            category: personalCat,
-            is_recurring: false,
-          }))
-        );
+        const payload: TxnImportItem[] = toAdd.map((t) => ({
+          name: t.raw.trim().slice(0, 80) || category,
+          type: defaultType,
+          amount: t.amt,
+          category: resolvedCategory,
+          occurred_on: t.date ?? todayIso(),
+        }));
+        const res = await addTransactionsFromScan(payload);
         onAdded(toAdd.map((t) => t.id));
         onBanner({
           kind: "ok",
-          text: `Added ${res.inserted} ${category} transactions to Personal Expenses.`,
+          text: `Added ${res.inserted} ${category} transactions as ${defaultType} expenses.`,
         });
       } catch (e) {
         onBanner({
           kind: "err",
-          text: `Could not add expenses: ${(e as Error).message}`,
+          text: `Could not add transactions: ${(e as Error).message}`,
         });
       }
     });
@@ -490,20 +547,20 @@ function CategorySection({
         const res = await addExpensesBulk(
           merchants.map((m) => ({
             name: m.name,
-            type: "personal" as const,
+            type: defaultType,
             amount: m.total / Math.max(1, m.count),
-            category: personalCat,
+            category: resolvedCategory,
             is_recurring: true,
           }))
         );
         onBanner({
           kind: "ok",
-          text: `Added ${res.inserted} ${category} merchants as recurring expenses (avg per charge).`,
+          text: `Added ${res.inserted} ${category} merchants as recurring ${defaultType} expenses.`,
         });
       } catch (e) {
         onBanner({
           kind: "err",
-          text: `Could not add expenses: ${(e as Error).message}`,
+          text: `Could not add recurring: ${(e as Error).message}`,
         });
       }
     });
@@ -522,9 +579,7 @@ function CategorySection({
             ({items.length})
           </span>
         </button>
-        <div className="flex items-center gap-2">
-          <span className="font-mono">{fmtCurrency(total)}</span>
-        </div>
+        <span className="font-mono">{fmtCurrency(total)}</span>
       </div>
       {open && (
         <div className="pl-5 pt-2 space-y-2">
@@ -532,12 +587,12 @@ function CategorySection({
             <Button
               size="sm"
               variant="outline"
-              onClick={addAllRaw}
+              onClick={addAllAsTransactions}
               disabled={isPending || allAdded}
             >
               {allAdded
                 ? "All added"
-                : `Add all ${items.length} as one-time expenses`}
+                : `Add ${items.length} dated transactions`}
             </Button>
             {category === "Subscriptions" && (
               <Button
@@ -546,7 +601,7 @@ function CategorySection({
                 onClick={addAsRecurringMerchants}
                 disabled={isPending}
               >
-                Add {merchants.length} merchants as recurring
+                Also add {merchants.length} merchants as recurring
               </Button>
             )}
           </div>
@@ -556,6 +611,8 @@ function CategorySection({
                 key={t.id}
                 txn={t}
                 category={category}
+                resolvedCategory={resolvedCategory}
+                defaultType={defaultType}
                 added={addedIds.has(t.id)}
                 onAdded={(id) => onAdded([id])}
                 onBanner={onBanner}
@@ -587,34 +644,40 @@ function CategorySection({
 function TxnRow({
   txn,
   category,
+  resolvedCategory,
+  defaultType,
   added,
   onAdded,
   onBanner,
 }: {
   txn: Txn;
   category: string;
+  resolvedCategory: string;
+  defaultType: DefaultType;
   added: boolean;
   onAdded: (id: string) => void;
   onBanner: (b: { kind: "ok" | "err"; text: string } | null) => void;
 }) {
   const [isPending, startTransition] = useTransition();
 
-  const addAsExpense = () => {
-    const fd = new FormData();
-    fd.set("name", txn.raw.trim().slice(0, 80) || category);
-    fd.set("type", "personal");
-    fd.set("amount", String(txn.amt));
-    fd.set("category", PERSONAL_CATEGORY_MAP[category] ?? "Other");
-    fd.set("is_recurring", "false");
+  const addAsTransaction = () => {
     onBanner(null);
     startTransition(async () => {
       try {
-        await addExpense(fd);
+        await addTransactionsFromScan([
+          {
+            name: txn.raw.trim().slice(0, 80) || category,
+            type: defaultType,
+            amount: txn.amt,
+            category: resolvedCategory,
+            occurred_on: txn.date ?? todayIso(),
+          },
+        ]);
         onAdded(txn.id);
       } catch (e) {
         onBanner({
           kind: "err",
-          text: `Could not add expense: ${(e as Error).message}`,
+          text: `Could not add transaction: ${(e as Error).message}`,
         });
       }
     });
@@ -622,12 +685,17 @@ function TxnRow({
 
   return (
     <div className="flex items-center justify-between py-0.5 text-[11px] gap-2">
-      <span className="truncate text-[var(--muted-foreground)] max-w-[60%]">
+      <span className="truncate text-[var(--muted-foreground)] max-w-[55%]">
         {txn.raw}
       </span>
+      {txn.date && (
+        <span className="text-[10px] text-[var(--muted-foreground)] font-mono shrink-0">
+          {txn.date.slice(5)}
+        </span>
+      )}
       <span className="font-mono">{fmtCurrency(txn.amt)}</span>
       <button
-        onClick={addAsExpense}
+        onClick={addAsTransaction}
         disabled={isPending || added}
         className={cn(
           "shrink-0 inline-flex items-center gap-1 rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] transition-colors",
@@ -635,11 +703,72 @@ function TxnRow({
             ? "text-[var(--teal)] border-[color:var(--teal)]/30 bg-[var(--teal-bg)]"
             : "hover:bg-[var(--muted)]"
         )}
-        aria-label="Add to expenses"
+        aria-label="Add transaction"
       >
         <Plus size={9} />
         {added ? "Added" : "Add"}
       </button>
     </div>
+  );
+}
+
+function RecentImports({
+  transactions,
+}: {
+  transactions: ExpenseTransaction[];
+}) {
+  if (!transactions.length) return null;
+
+  return (
+    <Card>
+      <CardTitle>Recent Transactions</CardTitle>
+      <p className="text-[11px] text-[var(--muted-foreground)] -mt-2 mb-3">
+        The last {transactions.length} dated transactions — manual and
+        bank-scan imports.
+      </p>
+      <ul className="divide-y divide-[var(--border)]">
+        {transactions.map((t) => (
+          <RecentRow key={t.id} txn={t} />
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function RecentRow({ txn }: { txn: ExpenseTransaction }) {
+  const [isPending, startTransition] = useTransition();
+  return (
+    <li className="py-2 flex items-center gap-3 text-xs">
+      <span className="font-mono text-[var(--muted-foreground)] shrink-0 w-20">
+        {txn.occurred_on}
+      </span>
+      <span className="flex-1 min-w-0 truncate">{txn.name}</span>
+      <span
+        className={cn(
+          "shrink-0 rounded px-1.5 py-0.5 text-[10px] capitalize",
+          txn.type === "business"
+            ? "bg-[var(--blue-bg)] text-[var(--blue-fg)]"
+            : "bg-[var(--purple-bg)] text-[var(--purple-fg)]"
+        )}
+      >
+        {txn.type}
+      </span>
+      <span className="font-mono shrink-0 w-20 text-right">
+        {fmtCurrency(Number(txn.amount))}
+      </span>
+      <button
+        onClick={() => {
+          if (!confirm(`Delete this transaction?`)) return;
+          startTransition(async () => {
+            await deleteTransaction(txn.id);
+          });
+        }}
+        disabled={isPending}
+        className="shrink-0 rounded border border-[var(--border)] text-[var(--coral)] px-1.5 py-0.5 hover:bg-[var(--coral-bg)]"
+        aria-label="Delete transaction"
+      >
+        <Trash2 size={11} />
+      </button>
+    </li>
   );
 }
