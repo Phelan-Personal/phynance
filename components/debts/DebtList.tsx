@@ -57,6 +57,17 @@ export function DebtList({ debts }: { debts: Debt[] }) {
   const weightedApr = totalDebt
     ? active.reduce((a, d) => a + d.balance * d.interest_rate, 0) / totalDebt
     : 0;
+  const totalInterestMonthly = active.reduce(
+    (a, d) => a + d.balance * (d.interest_rate / 100 / 12),
+    0
+  );
+  const totalInterestYearly = totalInterestMonthly * 12;
+  const bizInterestMonthly = active
+    .filter((d) => d.type === "business")
+    .reduce((a, d) => a + d.balance * (d.interest_rate / 100 / 12), 0);
+  const persInterestMonthly = active
+    .filter((d) => d.type === "personal")
+    .reduce((a, d) => a + d.balance * (d.interest_rate / 100 / 12), 0);
 
   const withLimits = active.filter(
     (d) => d.credit_limit !== null && Number(d.credit_limit) > 0
@@ -81,6 +92,24 @@ export function DebtList({ debts }: { debts: Debt[] }) {
         <SumCell label="Personal" value={fmtCurrency(persDebt)} />
         <SumCell label="Weighted APR" value={fmtPct(weightedApr)} />
       </div>
+      {totalDebt > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <InterestCell
+            label="Interest accruing / month"
+            value={fmtCurrency(totalInterestMonthly)}
+            sub={
+              bizInterestMonthly > 0 && persInterestMonthly > 0
+                ? `${fmtCurrency(bizInterestMonthly)} business · ${fmtCurrency(persInterestMonthly)} personal`
+                : "what your current balances cost in interest each month"
+            }
+          />
+          <InterestCell
+            label="Interest accruing / year"
+            value={fmtCurrency(totalInterestYearly)}
+            sub="at today's balances — drops as you pay down"
+          />
+        </div>
+      )}
       {withLimits.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           <SumCell
@@ -244,6 +273,9 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
     [debt.balance, debt.interest_rate, debt.min_payment]
   );
 
+  const monthlyInterest = debt.balance * (debt.interest_rate / 100 / 12);
+  const yearlyInterest = monthlyInterest * 12;
+
   return (
     <li className="py-3 flex items-center gap-3">
       <div className="flex-1 min-w-0">
@@ -284,6 +316,15 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
             </span>
           )}
         </div>
+        {debt.balance > 0 && debt.interest_rate > 0 && (
+          <div className="mt-1 text-[11px] text-[var(--coral)]">
+            Interest:{" "}
+            <span className="font-mono">{fmtCurrency(monthlyInterest)}</span>
+            /mo ·{" "}
+            <span className="font-mono">{fmtCurrency(yearlyInterest)}</span>
+            /yr
+          </div>
+        )}
         <div className="mt-1 text-[11px]">
           {payoff.warning === "no_payment" ? (
             <span className="text-[var(--muted-foreground)]">
@@ -400,6 +441,32 @@ export function TypeBadge({ type }: { type: "personal" | "business" }) {
     >
       {type}
     </span>
+  );
+}
+
+function InterestCell({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-md border border-[color:var(--coral)]/30 bg-[var(--coral-bg)] px-3 py-2.5">
+      <div className="text-[10px] uppercase tracking-wider text-[var(--coral)]">
+        {label}
+      </div>
+      <div className="mt-0.5 font-mono text-base font-semibold text-[var(--coral)]">
+        {value}
+      </div>
+      {sub && (
+        <div className="text-[10px] text-[var(--coral)]/80 mt-0.5">
+          {sub}
+        </div>
+      )}
+    </div>
   );
 }
 
