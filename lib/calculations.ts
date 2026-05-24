@@ -250,6 +250,43 @@ export function calcMonthlyMortgage(
   return (loanAmount * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1);
 }
 
+// ─── Single-Debt Payoff (just balance, APR, min payment) ──
+
+export type SingleDebtPayoff = {
+  months: number | null;          // null = never (min doesn't cover interest)
+  totalInterest: number;
+  warning: "no_payment" | "min_too_low" | null;
+};
+
+export function singleDebtPayoff(
+  balance: number,
+  aprPct: number,
+  monthlyPayment: number
+): SingleDebtPayoff {
+  if (balance <= 0) {
+    return { months: 0, totalInterest: 0, warning: null };
+  }
+  if (monthlyPayment <= 0) {
+    return { months: null, totalInterest: 0, warning: "no_payment" };
+  }
+  if (aprPct === 0) {
+    const m = Math.ceil(balance / monthlyPayment);
+    return { months: m, totalInterest: 0, warning: null };
+  }
+  const r = aprPct / 100 / 12;
+  const interestOnly = balance * r;
+  if (monthlyPayment <= interestOnly + 0.01) {
+    return { months: null, totalInterest: 0, warning: "min_too_low" };
+  }
+  // n = log(P / (P - r*B)) / log(1+r)
+  const n =
+    Math.log(monthlyPayment / (monthlyPayment - r * balance)) /
+    Math.log(1 + r);
+  const months = Math.ceil(n);
+  const totalInterest = Math.max(0, months * monthlyPayment - balance);
+  return { months, totalInterest, warning: null };
+}
+
 // ─── Down Payment Savings Runway ─────────────────────────
 
 export function calcDownPaymentMonths(

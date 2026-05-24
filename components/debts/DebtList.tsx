@@ -1,13 +1,20 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, AlertTriangle } from "lucide-react";
 import type { Debt } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { CreditCard } from "lucide-react";
-import { aprColor, cn, fmtCurrency, fmtPct } from "@/lib/utils";
+import {
+  aprColor,
+  cn,
+  fmtCurrency,
+  fmtMonthYear,
+  fmtPct,
+} from "@/lib/utils";
+import { singleDebtPayoff } from "@/lib/calculations";
 import { deleteDebt } from "@/app/(app)/debts/actions";
 import { DebtForm } from "./DebtForm";
 
@@ -225,6 +232,12 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
   const utilization = hasLimit ? (debt.balance / creditLimit) * 100 : 0;
   const overLimit = available < 0;
 
+  const payoff = useMemo(
+    () =>
+      singleDebtPayoff(debt.balance, debt.interest_rate, debt.min_payment),
+    [debt.balance, debt.interest_rate, debt.min_payment]
+  );
+
   return (
     <li className="py-3 flex items-center gap-3">
       <div className="flex-1 min-w-0">
@@ -256,6 +269,32 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
               · {fmtPct(utilization)}
             </span>
           )}
+        </div>
+        <div className="mt-1 text-[11px]">
+          {payoff.warning === "no_payment" ? (
+            <span className="text-[var(--muted-foreground)]">
+              Set a minimum payment to see payoff date
+            </span>
+          ) : payoff.warning === "min_too_low" ? (
+            <span className="inline-flex items-center gap-1 text-[var(--coral)]">
+              <AlertTriangle size={11} />
+              Minimum doesn't cover interest — balance grows forever
+            </span>
+          ) : payoff.months === 0 ? (
+            <span className="text-[var(--teal)]">Paid off</span>
+          ) : payoff.months !== null ? (
+            <span className="text-[var(--muted-foreground)]">
+              Min-only payoff:{" "}
+              <span className="font-mono text-[var(--foreground)]">
+                {fmtMonthYear(payoff.months)}
+              </span>{" "}
+              <span className="font-mono">({payoff.months} mo)</span> ·{" "}
+              <span className="font-mono">
+                {fmtCurrency(payoff.totalInterest)}
+              </span>{" "}
+              interest
+            </span>
+          ) : null}
         </div>
         {hasLimit && (
           <div className="mt-2 h-1.5 rounded-full bg-[var(--muted)] overflow-hidden">
