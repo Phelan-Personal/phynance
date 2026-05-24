@@ -35,6 +35,7 @@ import {
 import type {
   Debt,
   Expense,
+  ExpenseHistory,
   ExpenseTransaction,
   IncomeHistory,
   IncomeStream,
@@ -47,6 +48,7 @@ export function CashflowMonthView({
   debts,
   transactions,
   loggedIncome,
+  expenseHistory,
 }: {
   startingBalance: number;
   streams: IncomeStream[];
@@ -54,6 +56,7 @@ export function CashflowMonthView({
   debts: Debt[];
   transactions: ExpenseTransaction[];
   loggedIncome: IncomeHistory[];
+  expenseHistory: ExpenseHistory[];
 }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -69,8 +72,18 @@ export function CashflowMonthView({
         debts,
         transactions,
         loggedIncome,
+        expenseHistory,
       }),
-    [year, monthIndex, streams, expenses, debts, transactions, loggedIncome]
+    [
+      year,
+      monthIndex,
+      streams,
+      expenses,
+      debts,
+      transactions,
+      loggedIncome,
+      expenseHistory,
+    ]
   );
 
   const dim = daysInMonth(year, monthIndex);

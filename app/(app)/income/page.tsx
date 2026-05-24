@@ -1,5 +1,11 @@
 import { requireUser } from "@/lib/auth";
-import type { IncomeStream, IncomeHistory, Debt, Expense } from "@/types";
+import type {
+  IncomeStream,
+  IncomeHistory,
+  Debt,
+  Expense,
+  ExpenseHistory,
+} from "@/types";
 import { getOrCreateSettings } from "@/lib/data";
 import { IncomeStreamsList } from "@/components/income/IncomeStreamsList";
 import { IncomeSettingsAndCashflow } from "@/components/income/IncomeSettingsAndCashflow";
@@ -13,6 +19,7 @@ export default async function IncomePage() {
     { data: historyData },
     { data: debtsData },
     { data: expensesData },
+    { data: expenseHistoryData },
     settings,
   ] = await Promise.all([
     supabase
@@ -24,6 +31,7 @@ export default async function IncomePage() {
     supabase.from("income_history").select("*").eq("user_id", user.id),
     supabase.from("debts").select("*").eq("user_id", user.id),
     supabase.from("expenses").select("*").eq("user_id", user.id),
+    supabase.from("expense_history").select("*").eq("user_id", user.id),
     getOrCreateSettings(),
   ]);
 
@@ -31,6 +39,7 @@ export default async function IncomePage() {
   const history = (historyData ?? []) as IncomeHistory[];
   const debts = (debtsData ?? []) as Debt[];
   const expenses = (expensesData ?? []) as Expense[];
+  const expenseHistory = (expenseHistoryData ?? []) as ExpenseHistory[];
 
   return (
     <div className="space-y-4">
@@ -49,6 +58,7 @@ export default async function IncomePage() {
         streams={streams}
         debts={debts}
         expenses={expenses}
+        expenseHistory={expenseHistory}
       />
 
       <IncomeHistoryGrid streams={streams} history={history} />

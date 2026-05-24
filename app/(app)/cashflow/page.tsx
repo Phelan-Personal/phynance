@@ -3,6 +3,7 @@ import { getOrCreateSettings } from "@/lib/data";
 import type {
   Debt,
   Expense,
+  ExpenseHistory,
   ExpenseTransaction,
   IncomeHistory,
   IncomeStream,
@@ -17,6 +18,7 @@ export default async function CashflowPage() {
     { data: streamsData },
     { data: historyData },
     { data: transactionsData },
+    { data: expenseHistoryData },
     settings,
   ] = await Promise.all([
     supabase.from("debts").select("*").eq("user_id", user.id),
@@ -24,6 +26,7 @@ export default async function CashflowPage() {
     supabase.from("income_streams").select("*").eq("user_id", user.id),
     supabase.from("income_history").select("*").eq("user_id", user.id),
     supabase.from("expense_transactions").select("*").eq("user_id", user.id),
+    supabase.from("expense_history").select("*").eq("user_id", user.id),
     getOrCreateSettings(),
   ]);
 
@@ -32,6 +35,7 @@ export default async function CashflowPage() {
   const streams = (streamsData ?? []) as IncomeStream[];
   const history = (historyData ?? []) as IncomeHistory[];
   const transactions = (transactionsData ?? []) as ExpenseTransaction[];
+  const expenseHistory = (expenseHistoryData ?? []) as ExpenseHistory[];
 
   return (
     <div className="space-y-4">
@@ -49,6 +53,7 @@ export default async function CashflowPage() {
         debts={debts}
         transactions={transactions}
         loggedIncome={history}
+        expenseHistory={expenseHistory}
       />
     </div>
   );

@@ -89,11 +89,23 @@ create table if not exists expenses (
   amount numeric not null default 0,
   category text,
   due_day int check (due_day between 1 and 31),
-  frequency text check (frequency in ('monthly', 'annual', 'quarterly'))
+  frequency text check (frequency in ('monthly', 'annual', 'quarterly', 'variable'))
     not null default 'monthly',
   due_month int check (due_month between 1 and 12),  -- only for annual/quarterly
   is_recurring boolean default true,
   created_at timestamptz default now()
+);
+
+-- Monthly actuals for variable expenses (payroll, contractors, etc.)
+create table if not exists expense_history (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  expense_id uuid references expenses on delete cascade not null,
+  month date not null,
+  amount numeric not null default 0,
+  notes text,
+  created_at timestamptz default now(),
+  unique(expense_id, month)
 );
 
 -- =============================================
@@ -159,6 +171,7 @@ alter table financial_settings enable row level security;
 alter table debts enable row level security;
 alter table expenses enable row level security;
 alter table expense_transactions enable row level security;
+alter table expense_history enable row level security;
 alter table assets enable row level security;
 alter table bank_scans enable row level security;
 
@@ -195,6 +208,12 @@ create policy "Users can only access their own expenses"
 drop policy if exists "Users can only access their own expense_transactions" on expense_transactions;
 create policy "Users can only access their own expense_transactions"
   on expense_transactions for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can only access their own expense_history" on expense_history;
+create policy "Users can only access their own expense_history"
+  on expense_history for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 

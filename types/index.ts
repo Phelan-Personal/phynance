@@ -70,7 +70,17 @@ export type Debt = {
 
 export type ExpenseType = "personal" | "business";
 
-export type ExpenseFrequency = "monthly" | "annual" | "quarterly";
+export type ExpenseFrequency = "monthly" | "annual" | "quarterly" | "variable";
+
+export type ExpenseHistory = {
+  id: string;
+  user_id: string;
+  expense_id: string;
+  month: string; // YYYY-MM-01
+  amount: number;
+  notes: string | null;
+  created_at: string;
+};
 
 export type Expense = {
   id: string;

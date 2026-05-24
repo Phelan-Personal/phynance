@@ -1,11 +1,12 @@
 import type {
   Debt,
   Expense,
+  ExpenseHistory,
   ExpenseTransaction,
   IncomeHistory,
   IncomeStream,
 } from "@/types";
-import { occursInMonth } from "./expenses";
+import { amountInMonth } from "./expenses";
 
 export type CashflowEventKind = "income" | "expense" | "debt" | "transaction";
 
@@ -45,8 +46,18 @@ export function eventsForMonth(opts: {
   debts: Debt[];
   transactions: ExpenseTransaction[];
   loggedIncome: IncomeHistory[];
+  expenseHistory?: ExpenseHistory[];
 }): CashflowEvent[] {
-  const { year, monthIndex, streams, expenses, debts, transactions, loggedIncome } = opts;
+  const {
+    year,
+    monthIndex,
+    streams,
+    expenses,
+    debts,
+    transactions,
+    loggedIncome,
+    expenseHistory = [],
+  } = opts;
   const events: CashflowEvent[] = [];
   const dim = daysInMonth(year, monthIndex);
   const monthKey = monthKeyFor(year, monthIndex);
@@ -89,20 +100,31 @@ export function eventsForMonth(opts: {
 
   // ────── Recurring expenses (full lump on due_day, only in months they hit) ──────
   for (const e of expenses) {
-    if (!occursInMonth(e, monthIndex)) continue;
+    const { amount: amt, logged } = amountInMonth(
+      e,
+      year,
+      monthIndex,
+      expenseHistory
+    );
+    if (amt === 0) continue;
     const day = clamp(e.due_day ?? 1);
+    const suffix =
+      e.frequency === "monthly"
+        ? ""
+        : e.frequency === "variable"
+          ? logged
+            ? " (logged)"
+            : " (estimate)"
+          : ` (${e.frequency})`;
     events.push({
       id: `exp-${e.id}`,
       day,
       kind: "expense",
-      name:
-        e.frequency === "monthly"
-          ? e.name
-          : `${e.name} (${e.frequency})`,
-      amount: -Number(e.amount),
-      source: "recurring",
+      name: `${e.name}${suffix}`,
+      amount: -amt,
+      source: logged ? "logged" : "recurring",
       category: e.category,
-      isProjected: true,
+      isProjected: !logged,
     });
   }
 

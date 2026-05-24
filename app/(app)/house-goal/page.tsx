@@ -3,6 +3,7 @@ import { getOrCreateSettings } from "@/lib/data";
 import type {
   Debt,
   Expense,
+  ExpenseHistory,
   IncomeStream,
   IncomeHistory,
 } from "@/types";
@@ -36,12 +37,14 @@ export default async function HouseGoalPage() {
     { data: expensesData },
     { data: streamsData },
     { data: historyData },
+    { data: expenseHistoryData },
     settings,
   ] = await Promise.all([
     supabase.from("debts").select("*").eq("user_id", user.id),
     supabase.from("expenses").select("*").eq("user_id", user.id),
     supabase.from("income_streams").select("*").eq("user_id", user.id),
     supabase.from("income_history").select("*").eq("user_id", user.id),
+    supabase.from("expense_history").select("*").eq("user_id", user.id),
     getOrCreateSettings(),
   ]);
 
@@ -49,6 +52,7 @@ export default async function HouseGoalPage() {
   const expenses = (expensesData ?? []) as Expense[];
   const streams = (streamsData ?? []) as IncomeStream[];
   const history = (historyData ?? []) as IncomeHistory[];
+  const expenseHistory = (expenseHistoryData ?? []) as ExpenseHistory[];
 
   const calcDebts: CalcDebt[] = debts
     .filter((d) => !d.is_paid_off)
@@ -68,10 +72,10 @@ export default async function HouseGoalPage() {
   const totalDebtMins = calcDebts.reduce((a, d) => a + d.min_payment, 0);
   const bizExpenses = expenses
     .filter((e) => e.type === "business")
-    .reduce((a, e) => a + monthlyAmortized(e), 0);
+    .reduce((a, e) => a + monthlyAmortized(e, expenseHistory), 0);
   const persExpenses = expenses
     .filter((e) => e.type === "personal")
-    .reduce((a, e) => a + monthlyAmortized(e), 0);
+    .reduce((a, e) => a + monthlyAmortized(e, expenseHistory), 0);
   const bizDebtMins = calcDebts
     .filter((d) => d.type === "business")
     .reduce((a, d) => a + d.min_payment, 0);

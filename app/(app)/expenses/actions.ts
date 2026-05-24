@@ -26,9 +26,9 @@ function parseMonth(v: FormDataEntryValue | null): number | null {
 
 function parseFrequency(
   v: FormDataEntryValue | null
-): "monthly" | "annual" | "quarterly" {
+): "monthly" | "annual" | "quarterly" | "variable" {
   const s = String(v ?? "monthly").trim().toLowerCase();
-  if (s === "annual" || s === "quarterly") return s;
+  if (s === "annual" || s === "quarterly" || s === "variable") return s;
   return "monthly";
 }
 
@@ -45,7 +45,9 @@ export async function addExpense(formData: FormData) {
   const due_day = parseDay(formData.get("due_day"));
   const frequency = parseFrequency(formData.get("frequency"));
   const due_month =
-    frequency === "monthly" ? null : parseMonth(formData.get("due_month"));
+    frequency === "annual" || frequency === "quarterly"
+      ? parseMonth(formData.get("due_month"))
+      : null;
 
   if (!name) throw new Error("Name is required");
   if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
@@ -118,7 +120,9 @@ export async function updateExpense(formData: FormData) {
   const due_day = parseDay(formData.get("due_day"));
   const frequency = parseFrequency(formData.get("frequency"));
   const due_month =
-    frequency === "monthly" ? null : parseMonth(formData.get("due_month"));
+    frequency === "annual" || frequency === "quarterly"
+      ? parseMonth(formData.get("due_month"))
+      : null;
 
   if (!name) throw new Error("Name is required");
   if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
@@ -145,6 +149,41 @@ export async function deleteExpense(id: string) {
   if (error) {
     console.error("[expenses] delete failed:", error.message);
     throw new Error(error.message);
+  }
+  reval();
+}
+
+export async function setExpenseMonthlyAmount(
+  expenseId: string,
+  month: string,
+  amount: number
+) {
+  const { user, supabase } = await requireUser();
+  if (amount === 0 || Number.isNaN(amount)) {
+    const { error } = await supabase
+      .from("expense_history")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("expense_id", expenseId)
+      .eq("month", month);
+    if (error) {
+      console.error("[expense_history] delete failed:", error.message);
+      throw new Error(error.message);
+    }
+  } else {
+    const { error } = await supabase.from("expense_history").upsert(
+      {
+        user_id: user.id,
+        expense_id: expenseId,
+        month,
+        amount,
+      },
+      { onConflict: "expense_id,month" }
+    );
+    if (error) {
+      console.error("[expense_history] upsert failed:", error.message);
+      throw new Error(error.message);
+    }
   }
   reval();
 }

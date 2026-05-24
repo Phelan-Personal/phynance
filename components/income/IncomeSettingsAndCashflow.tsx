@@ -6,6 +6,7 @@ import type {
   IncomeStream,
   Debt,
   Expense,
+  ExpenseHistory,
 } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -19,11 +20,13 @@ export function IncomeSettingsAndCashflow({
   streams,
   debts,
   expenses,
+  expenseHistory,
 }: {
   settings: FinancialSettings;
   streams: IncomeStream[];
   debts: Debt[];
   expenses: Expense[];
+  expenseHistory: ExpenseHistory[];
 }) {
   const [draw, setDraw] = useState(Number(settings.personal_draw) || 0);
   const [se, setSe] = useState(Number(settings.se_tax_rate) || 15.3);
@@ -48,10 +51,10 @@ export function IncomeSettingsAndCashflow({
   );
   const bizExpenses = expenses
     .filter((e) => e.type === "business")
-    .reduce((a, e) => a + monthlyAmortized(e), 0);
+    .reduce((a, e) => a + monthlyAmortized(e, expenseHistory), 0);
   const persExpenses = expenses
     .filter((e) => e.type === "personal")
-    .reduce((a, e) => a + monthlyAmortized(e), 0);
+    .reduce((a, e) => a + monthlyAmortized(e, expenseHistory), 0);
   const bizDebtMins = debts
     .filter((d) => d.type === "business" && !d.is_paid_off)
     .reduce((a, d) => a + Number(d.min_payment), 0);
