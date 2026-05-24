@@ -4,6 +4,7 @@ import {
   PiggyBank,
   Home as HomeIcon,
   ShieldAlert,
+  CalendarDays,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getOrCreateSettings } from "@/lib/data";
@@ -13,8 +14,10 @@ import type {
   IncomeStream,
   IncomeHistory,
   ExpenseTransaction,
+  Asset,
   FinancialSettings,
 } from "@/types";
+import { assetValue } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { CashflowHistoryChart } from "@/components/dashboard/CashflowHistoryChart";
 import {
@@ -24,6 +27,12 @@ import {
   runBurndown,
   type CalcDebt,
 } from "@/lib/calculations";
+import {
+  dailyBalances,
+  daysInMonth,
+  eventsForMonth,
+  lowestPoint,
+} from "@/lib/cashflow";
 import {
   cn,
   fmtCurrency,
@@ -53,6 +62,7 @@ export default async function DashboardPage() {
     { data: streamsData },
     { data: incomeHistoryData },
     { data: transactionsData },
+    { data: assetsData },
     settings,
   ] = await Promise.all([
     supabase.from("debts").select("*").eq("user_id", user.id),
@@ -63,6 +73,7 @@ export default async function DashboardPage() {
       .from("expense_transactions")
       .select("*")
       .eq("user_id", user.id),
+    supabase.from("assets").select("*").eq("user_id", user.id),
     getOrCreateSettings(),
   ]);
 
@@ -71,6 +82,7 @@ export default async function DashboardPage() {
   const streams = (streamsData ?? []) as IncomeStream[];
   const incomeHistory = (incomeHistoryData ?? []) as IncomeHistory[];
   const transactions = (transactionsData ?? []) as ExpenseTransaction[];
+  const assets = (assetsData ?? []) as Asset[];
 
   const grossMonthly = streams.reduce(
     (a, s) => a + Number(s.avg_monthly || 0),
@@ -126,6 +138,34 @@ export default async function DashboardPage() {
 
   const dti = calcDTI(totalMins, grossMonthly);
 
+  // Cashflow danger detection for the current month
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthIndex = now.getMonth();
+  const cashflowEvents = eventsForMonth({
+    year: currentYear,
+    monthIndex: currentMonthIndex,
+    streams,
+    expenses,
+    debts,
+    transactions,
+    loggedIncome: incomeHistory,
+  });
+  const cashOnHand = Number(settings.cash_on_hand) || 0;
+  const cashflowPoints = dailyBalances(
+    cashflowEvents,
+    cashOnHand,
+    daysInMonth(currentYear, currentMonthIndex)
+  );
+  const cashflowLow = lowestPoint(cashflowPoints);
+  const monthName = new Date(
+    currentYear,
+    currentMonthIndex,
+    1
+  ).toLocaleDateString("en-US", { month: "long" });
+
+  const totalAssets = assets.reduce((a, x) => a + assetValue(x), 0);
+
   return (
     <div className="space-y-5">
       <div>
@@ -179,6 +219,25 @@ export default async function DashboardPage() {
       </div>
 
       {/* Alerts */}
+      {cashflowLow && cashflowLow.balance < 0 && (
+        <Link
+          href="/cashflow"
+          className="block rounded-md border border-[color:var(--coral)]/40 bg-[var(--coral-bg)] px-3 py-2 text-xs text-[var(--coral)] hover:bg-[var(--coral-bg)]/80"
+        >
+          <div className="flex items-start gap-2.5">
+            <CalendarDays size={14} className="mt-0.5 shrink-0" />
+            <span>
+              <strong>{monthName}:</strong> your balance bottoms out at{" "}
+              <strong className="font-mono">{fmtCurrency(cashflowLow.balance)}</strong>{" "}
+              on day <strong>{cashflowLow.day}</strong>. You need{" "}
+              <strong className="font-mono">
+                {fmtCurrency(Math.abs(cashflowLow.balance))}
+              </strong>{" "}
+              of bridge cash before then. <span className="underline">See /cashflow →</span>
+            </span>
+          </div>
+        </Link>
+      )}
       {totalDebt > 0 && effectiveExtra <= 0 && (
         <Alert
           tone="warn"
@@ -214,6 +273,56 @@ export default async function DashboardPage() {
             dti
           )}) is above the 43% lending threshold. Pay off debt before applying for a mortgage.`}
         />
+      )}
+
+      {/* Assets summary */}
+      {assets.length > 0 && (
+        <Card>
+          <CardTitle
+            right={
+              <Link
+                href="/assets"
+                className="text-xs text-[var(--teal)] hover:underline"
+              >
+                Manage assets →
+              </Link>
+            }
+          >
+            Assets
+          </CardTitle>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <MetricCard
+              label="Total Assets"
+              value={fmtCurrency(totalAssets)}
+              sub={`${assets.length} item${assets.length === 1 ? "" : "s"}`}
+              tone="good"
+            />
+            <MetricCard
+              label="Savings"
+              value={fmtCurrency(
+                assets
+                  .filter((a) => a.type === "savings")
+                  .reduce((s, a) => s + assetValue(a), 0)
+              )}
+            />
+            <MetricCard
+              label="Crypto"
+              value={fmtCurrency(
+                assets
+                  .filter((a) => a.type === "crypto")
+                  .reduce((s, a) => s + assetValue(a), 0)
+              )}
+            />
+            <MetricCard
+              label="Stocks"
+              value={fmtCurrency(
+                assets
+                  .filter((a) => a.type === "stock")
+                  .reduce((s, a) => s + assetValue(a), 0)
+              )}
+            />
+          </div>
+        </Card>
       )}
 
       {/* Cashflow over time */}

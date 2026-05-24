@@ -96,6 +96,25 @@ export type ExpenseTransaction = {
   created_at: string;
 };
 
+export type AssetType = "savings" | "crypto" | "stock" | "other";
+
+export type Asset = {
+  id: string;
+  user_id: string;
+  name: string;
+  type: AssetType;
+  symbol: string | null;
+  units: number;
+  price_per_unit: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function assetValue(a: { units: number; price_per_unit: number }): number {
+  return Number(a.units) * Number(a.price_per_unit);
+}
+
 export type BankScanCategorySummary = Record<
   string,
   { total: number; count: number }

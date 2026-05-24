@@ -109,6 +109,22 @@ create table if not exists expense_transactions (
 );
 
 -- =============================================
+-- ASSETS (savings, crypto, stocks)
+-- =============================================
+create table if not exists assets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  name text not null,
+  type text check (type in ('savings', 'crypto', 'stock', 'other')) not null default 'savings',
+  symbol text,                                   -- ticker (BTC, AAPL); null for savings
+  units numeric not null default 1,              -- 1 for savings; share/coin count otherwise
+  price_per_unit numeric not null default 0,     -- $ per unit (for savings, = total balance)
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- =============================================
 -- BANK SCAN SESSIONS (optional persistence)
 -- =============================================
 create table if not exists bank_scans (
@@ -140,6 +156,7 @@ alter table financial_settings enable row level security;
 alter table debts enable row level security;
 alter table expenses enable row level security;
 alter table expense_transactions enable row level security;
+alter table assets enable row level security;
 alter table bank_scans enable row level security;
 
 drop policy if exists "Users can only access their own income_streams" on income_streams;
@@ -178,6 +195,12 @@ create policy "Users can only access their own expense_transactions"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users can only access their own assets" on assets;
+create policy "Users can only access their own assets"
+  on assets for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 drop policy if exists "Users can only access their own bank_scans" on bank_scans;
 create policy "Users can only access their own bank_scans"
   on bank_scans for all
@@ -201,4 +224,8 @@ create trigger debts_updated_at before update on debts
 
 drop trigger if exists settings_updated_at on financial_settings;
 create trigger settings_updated_at before update on financial_settings
+  for each row execute procedure handle_updated_at();
+
+drop trigger if exists assets_updated_at on assets;
+create trigger assets_updated_at before update on assets
   for each row execute procedure handle_updated_at();
