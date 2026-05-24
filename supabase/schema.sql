@@ -70,6 +70,7 @@ create table if not exists debts (
   interest_rate numeric not null default 0,
   min_payment numeric not null default 0,
   original_balance numeric,
+  credit_limit numeric,                          -- credit line cap (cards, LOCs); null for installment loans
   due_day int check (due_day between 1 and 31),
   notes text,
   is_paid_off boolean default false,

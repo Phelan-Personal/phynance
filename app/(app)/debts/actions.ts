@@ -30,6 +30,11 @@ export async function upsertDebt(formData: FormData) {
     parseFloat(String(formData.get("min_payment") ?? "0")) || 0;
   const originalRaw = String(formData.get("original_balance") ?? "").trim();
   const original_balance = originalRaw ? parseFloat(originalRaw) : null;
+  const limitRaw = String(formData.get("credit_limit") ?? "").trim();
+  const credit_limit =
+    limitRaw && Number.isFinite(parseFloat(limitRaw))
+      ? parseFloat(limitRaw)
+      : null;
   const due_day = parseDay(formData.get("due_day"));
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
@@ -45,6 +50,7 @@ export async function upsertDebt(formData: FormData) {
         interest_rate,
         min_payment,
         original_balance,
+        credit_limit,
         due_day,
         notes,
         is_paid_off: balance <= 0.01,
@@ -65,6 +71,7 @@ export async function upsertDebt(formData: FormData) {
       interest_rate,
       min_payment,
       original_balance: original_balance ?? balance,
+      credit_limit,
       due_day,
       notes,
     });

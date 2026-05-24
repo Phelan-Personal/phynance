@@ -85,18 +85,28 @@ export function DebtForm({
                 defaultValue={debt?.original_balance ?? ""}
               />
             </Field>
-            <Field label="Due day (1–31)">
+            <Field label="Credit limit (cards, LOCs)">
               <input
                 type="number"
-                name="due_day"
-                min="1"
-                max="31"
-                step="1"
-                defaultValue={debt?.due_day ?? ""}
-                placeholder="e.g. 15"
+                name="credit_limit"
+                step="0.01"
+                min="0"
+                defaultValue={debt?.credit_limit ?? ""}
+                placeholder="e.g. 10000"
               />
             </Field>
           </div>
+          <Field label="Due day (1–31)">
+            <input
+              type="number"
+              name="due_day"
+              min="1"
+              max="31"
+              step="1"
+              defaultValue={debt?.due_day ?? ""}
+              placeholder="e.g. 15"
+            />
+          </Field>
           <Field label="Notes">
             <input name="notes" defaultValue={debt?.notes ?? ""} />
           </Field>

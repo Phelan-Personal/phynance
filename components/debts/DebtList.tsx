@@ -45,6 +45,20 @@ export function DebtList({ debts }: { debts: Debt[] }) {
     ? active.reduce((a, d) => a + d.balance * d.interest_rate, 0) / totalDebt
     : 0;
 
+  const withLimits = active.filter(
+    (d) => d.credit_limit !== null && Number(d.credit_limit) > 0
+  );
+  const totalCreditLimit = withLimits.reduce(
+    (a, d) => a + Number(d.credit_limit),
+    0
+  );
+  const totalCreditUsed = withLimits.reduce((a, d) => a + d.balance, 0);
+  const totalAvailable = totalCreditLimit - totalCreditUsed;
+  const portfolioUtilization =
+    totalCreditLimit > 0
+      ? (totalCreditUsed / totalCreditLimit) * 100
+      : 0;
+
   return (
     <div className="space-y-4">
       {/* Summary */}
@@ -54,6 +68,39 @@ export function DebtList({ debts }: { debts: Debt[] }) {
         <SumCell label="Personal" value={fmtCurrency(persDebt)} />
         <SumCell label="Weighted APR" value={fmtPct(weightedApr)} />
       </div>
+      {withLimits.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <SumCell
+            label="Credit Lines"
+            value={fmtCurrency(totalCreditLimit)}
+            sub={`${withLimits.length} account${withLimits.length === 1 ? "" : "s"}`}
+          />
+          <SumCell label="Used" value={fmtCurrency(totalCreditUsed)} />
+          <SumCell
+            label="Available"
+            value={fmtCurrency(totalAvailable)}
+            tone={
+              totalAvailable < 0
+                ? "bad"
+                : totalAvailable < totalCreditLimit * 0.1
+                  ? "warn"
+                  : "good"
+            }
+          />
+          <SumCell
+            label="Utilization"
+            value={fmtPct(portfolioUtilization)}
+            tone={
+              portfolioUtilization > 100
+                ? "bad"
+                : portfolioUtilization > 30
+                  ? "warn"
+                  : "good"
+            }
+            sub="ideal under 30%"
+          />
+        </div>
+      )}
 
       <Card>
         <CardTitle
@@ -171,6 +218,13 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
           Math.min(100, (1 - debt.balance / debt.original_balance) * 100)
         )
       : null;
+  const hasLimit =
+    debt.credit_limit !== null && Number(debt.credit_limit) > 0;
+  const creditLimit = hasLimit ? Number(debt.credit_limit) : 0;
+  const available = hasLimit ? creditLimit - debt.balance : 0;
+  const utilization = hasLimit ? (debt.balance / creditLimit) * 100 : 0;
+  const overLimit = available < 0;
+
   return (
     <li className="py-3 flex items-center gap-3">
       <div className="flex-1 min-w-0">
@@ -178,13 +232,49 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
           <span className="text-sm font-medium truncate">{debt.name}</span>
           <TypeBadge type={debt.type} />
         </div>
-        <div className="mt-1 flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
+        <div className="mt-1 flex items-center gap-3 text-xs text-[var(--muted-foreground)] flex-wrap">
           <span className={cn("font-mono", aprColor(debt.interest_rate))}>
             {fmtPct(debt.interest_rate)} APR
           </span>
           <span className="font-mono">Min {fmtCurrency(debt.min_payment)}/mo</span>
+          {hasLimit && (
+            <span
+              className={cn(
+                "font-mono",
+                overLimit
+                  ? "text-[var(--coral)]"
+                  : utilization > 80
+                    ? "text-[var(--coral)]"
+                    : utilization > 30
+                      ? "text-[var(--amber)]"
+                      : "text-[var(--teal)]"
+              )}
+            >
+              {overLimit
+                ? `Over by ${fmtCurrency(Math.abs(available))}`
+                : `${fmtCurrency(available)} available`}{" "}
+              · {fmtPct(utilization)}
+            </span>
+          )}
         </div>
-        {pct !== null && (
+        {hasLimit && (
+          <div className="mt-2 h-1.5 rounded-full bg-[var(--muted)] overflow-hidden">
+            <div
+              className={cn(
+                "h-full",
+                overLimit
+                  ? "bg-[var(--coral)]"
+                  : utilization > 80
+                    ? "bg-[var(--coral)]"
+                    : utilization > 30
+                      ? "bg-[var(--amber)]"
+                      : "bg-[var(--teal)]"
+              )}
+              style={{ width: `${Math.min(100, utilization)}%` }}
+            />
+          </div>
+        )}
+        {!hasLimit && pct !== null && (
           <div className="mt-2 h-1.5 rounded-full bg-[var(--muted)] overflow-hidden">
             <div
               className="h-full bg-[var(--teal)]"
@@ -197,7 +287,11 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
         <div className="font-mono text-sm font-medium">
           {fmtCurrency(debt.balance)}
         </div>
-        <div className="text-[10px] text-[var(--muted-foreground)]">remaining</div>
+        <div className="text-[10px] text-[var(--muted-foreground)]">
+          {hasLimit
+            ? `of ${fmtCurrency(creditLimit)}`
+            : "remaining"}
+        </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <Button
@@ -244,13 +338,38 @@ export function TypeBadge({ type }: { type: "personal" | "business" }) {
   );
 }
 
-function SumCell({ label, value }: { label: string; value: string }) {
+function SumCell({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "good" | "warn" | "bad";
+}) {
+  const cls =
+    tone === "good"
+      ? "text-[var(--teal)]"
+      : tone === "warn"
+        ? "text-[var(--amber)]"
+        : tone === "bad"
+          ? "text-[var(--coral)]"
+          : "";
   return (
     <div className="rounded-md bg-[var(--muted)] px-3 py-2">
       <div className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
         {label}
       </div>
-      <div className="mt-0.5 font-mono text-sm font-medium">{value}</div>
+      <div className={cn("mt-0.5 font-mono text-sm font-medium", cls)}>
+        {value}
+      </div>
+      {sub && (
+        <div className="text-[10px] text-[var(--muted-foreground)] mt-0.5">
+          {sub}
+        </div>
+      )}
     </div>
   );
 }

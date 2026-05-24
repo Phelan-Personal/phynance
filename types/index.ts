@@ -60,6 +60,7 @@ export type Debt = {
   interest_rate: number;
   min_payment: number;
   original_balance: number | null;
+  credit_limit: number | null;
   due_day: number | null;
   notes: string | null;
   is_paid_off: boolean;
