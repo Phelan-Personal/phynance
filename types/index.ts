@@ -70,6 +70,8 @@ export type Debt = {
 
 export type ExpenseType = "personal" | "business";
 
+export type ExpenseFrequency = "monthly" | "annual" | "quarterly";
+
 export type Expense = {
   id: string;
   user_id: string;
@@ -78,6 +80,8 @@ export type Expense = {
   amount: number;
   category: string | null;
   due_day: number | null;
+  frequency: ExpenseFrequency;
+  due_month: number | null; // 1-12, only for annual/quarterly
   is_recurring: boolean;
   created_at: string;
 };

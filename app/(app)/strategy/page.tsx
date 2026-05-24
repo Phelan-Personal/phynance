@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { getOrCreateSettings } from "@/lib/data";
 import type { Debt, Expense, IncomeStream } from "@/types";
 import { calcAutoExtra, type CalcDebt } from "@/lib/calculations";
+import { monthlyAmortized } from "@/lib/expenses";
 import { StrategyClient } from "@/components/strategy/StrategyClient";
 
 export default async function StrategyPage() {
@@ -39,10 +40,10 @@ export default async function StrategyPage() {
   );
   const bizExpensesTotal = expenses
     .filter((e) => e.type === "business")
-    .reduce((a, e) => a + Number(e.amount), 0);
+    .reduce((a, e) => a + monthlyAmortized(e), 0);
   const persExpensesTotal = expenses
     .filter((e) => e.type === "personal")
-    .reduce((a, e) => a + Number(e.amount), 0);
+    .reduce((a, e) => a + monthlyAmortized(e), 0);
   const bizDebtMins = calcDebts
     .filter((d) => d.type === "business")
     .reduce((a, d) => a + d.min_payment, 0);

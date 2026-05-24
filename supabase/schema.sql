@@ -89,6 +89,9 @@ create table if not exists expenses (
   amount numeric not null default 0,
   category text,
   due_day int check (due_day between 1 and 31),
+  frequency text check (frequency in ('monthly', 'annual', 'quarterly'))
+    not null default 'monthly',
+  due_month int check (due_month between 1 and 12),  -- only for annual/quarterly
   is_recurring boolean default true,
   created_at timestamptz default now()
 );

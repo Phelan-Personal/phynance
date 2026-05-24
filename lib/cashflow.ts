@@ -5,6 +5,7 @@ import type {
   IncomeHistory,
   IncomeStream,
 } from "@/types";
+import { occursInMonth } from "./expenses";
 
 export type CashflowEventKind = "income" | "expense" | "debt" | "transaction";
 
@@ -86,14 +87,18 @@ export function eventsForMonth(opts: {
     });
   }
 
-  // ────── Recurring expenses ──────
+  // ────── Recurring expenses (full lump on due_day, only in months they hit) ──────
   for (const e of expenses) {
+    if (!occursInMonth(e, monthIndex)) continue;
     const day = clamp(e.due_day ?? 1);
     events.push({
       id: `exp-${e.id}`,
       day,
       kind: "expense",
-      name: e.name,
+      name:
+        e.frequency === "monthly"
+          ? e.name
+          : `${e.name} (${e.frequency})`,
       amount: -Number(e.amount),
       source: "recurring",
       category: e.category,

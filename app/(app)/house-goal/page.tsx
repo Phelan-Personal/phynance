@@ -7,6 +7,7 @@ import type {
   IncomeHistory,
 } from "@/types";
 import { calcAutoExtra, type CalcDebt } from "@/lib/calculations";
+import { monthlyAmortized } from "@/lib/expenses";
 import { HouseGoalShell } from "@/components/house/HouseGoalShell";
 
 function trend(history: IncomeHistory[]): "up" | "down" | "flat" {
@@ -67,10 +68,10 @@ export default async function HouseGoalPage() {
   const totalDebtMins = calcDebts.reduce((a, d) => a + d.min_payment, 0);
   const bizExpenses = expenses
     .filter((e) => e.type === "business")
-    .reduce((a, e) => a + Number(e.amount), 0);
+    .reduce((a, e) => a + monthlyAmortized(e), 0);
   const persExpenses = expenses
     .filter((e) => e.type === "personal")
-    .reduce((a, e) => a + Number(e.amount), 0);
+    .reduce((a, e) => a + monthlyAmortized(e), 0);
   const bizDebtMins = calcDebts
     .filter((d) => d.type === "business")
     .reduce((a, d) => a + d.min_payment, 0);

@@ -11,6 +11,7 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { cn, fmtCurrency, fmtPct } from "@/lib/utils";
 import { calcAutoExtra } from "@/lib/calculations";
+import { monthlyAmortized } from "@/lib/expenses";
 import { saveSettings } from "@/app/(app)/income/actions";
 
 export function IncomeSettingsAndCashflow({
@@ -47,10 +48,10 @@ export function IncomeSettingsAndCashflow({
   );
   const bizExpenses = expenses
     .filter((e) => e.type === "business")
-    .reduce((a, e) => a + Number(e.amount), 0);
+    .reduce((a, e) => a + monthlyAmortized(e), 0);
   const persExpenses = expenses
     .filter((e) => e.type === "personal")
-    .reduce((a, e) => a + Number(e.amount), 0);
+    .reduce((a, e) => a + monthlyAmortized(e), 0);
   const bizDebtMins = debts
     .filter((d) => d.type === "business" && !d.is_paid_off)
     .reduce((a, d) => a + Number(d.min_payment), 0);

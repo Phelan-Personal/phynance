@@ -33,6 +33,7 @@ import {
   eventsForMonth,
   lowestPoint,
 } from "@/lib/cashflow";
+import { monthlyAmortized } from "@/lib/expenses";
 import {
   cn,
   fmtCurrency,
@@ -90,10 +91,10 @@ export default async function DashboardPage() {
   );
   const bizExpenses = expenses
     .filter((e) => e.type === "business")
-    .reduce((a, e) => a + Number(e.amount), 0);
+    .reduce((a, e) => a + monthlyAmortized(e), 0);
   const persExpenses = expenses
     .filter((e) => e.type === "personal")
-    .reduce((a, e) => a + Number(e.amount), 0);
+    .reduce((a, e) => a + monthlyAmortized(e), 0);
   const calcDebts = toCalcDebts(debts);
   const bizDebtMins = calcDebts
     .filter((d) => d.type === "business")

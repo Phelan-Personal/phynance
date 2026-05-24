@@ -15,6 +15,23 @@ function parseDay(v: FormDataEntryValue | null): number | null {
   return n;
 }
 
+function parseMonth(v: FormDataEntryValue | null): number | null {
+  if (v === null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const n = parseInt(s, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 12) return null;
+  return n;
+}
+
+function parseFrequency(
+  v: FormDataEntryValue | null
+): "monthly" | "annual" | "quarterly" {
+  const s = String(v ?? "monthly").trim().toLowerCase();
+  if (s === "annual" || s === "quarterly") return s;
+  return "monthly";
+}
+
 export async function addExpense(formData: FormData) {
   const { user, supabase } = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
@@ -26,6 +43,9 @@ export async function addExpense(formData: FormData) {
   const isRecurringRaw = String(formData.get("is_recurring") ?? "true");
   const is_recurring = isRecurringRaw !== "false";
   const due_day = parseDay(formData.get("due_day"));
+  const frequency = parseFrequency(formData.get("frequency"));
+  const due_month =
+    frequency === "monthly" ? null : parseMonth(formData.get("due_month"));
 
   if (!name) throw new Error("Name is required");
   if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
@@ -37,6 +57,8 @@ export async function addExpense(formData: FormData) {
     amount,
     category,
     due_day,
+    frequency,
+    due_month,
     is_recurring,
   });
   if (error) {
@@ -94,13 +116,16 @@ export async function updateExpense(formData: FormData) {
   const amount = parseFloat(String(formData.get("amount") ?? "0")) || 0;
   const category = String(formData.get("category") ?? "").trim() || null;
   const due_day = parseDay(formData.get("due_day"));
+  const frequency = parseFrequency(formData.get("frequency"));
+  const due_month =
+    frequency === "monthly" ? null : parseMonth(formData.get("due_month"));
 
   if (!name) throw new Error("Name is required");
   if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
 
   const { error } = await supabase
     .from("expenses")
-    .update({ name, type, amount, category, due_day })
+    .update({ name, type, amount, category, due_day, frequency, due_month })
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) {
