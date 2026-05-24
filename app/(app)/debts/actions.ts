@@ -43,6 +43,7 @@ export async function upsertDebt(formData: FormData) {
       ? rawUrl
       : `https://${rawUrl}`
     : null;
+  const is_auto_pay = String(formData.get("is_auto_pay") ?? "") === "on";
 
   if (!name) throw new Error("Name is required");
 
@@ -59,6 +60,7 @@ export async function upsertDebt(formData: FormData) {
         credit_limit,
         due_day,
         payment_url,
+        is_auto_pay,
         notes,
         is_paid_off: balance <= 0.01,
         paid_off_at: balance <= 0.01 ? new Date().toISOString() : null,
@@ -81,6 +83,7 @@ export async function upsertDebt(formData: FormData) {
       credit_limit,
       due_day,
       payment_url,
+      is_auto_pay,
       notes,
     });
     if (error) {

@@ -118,6 +118,16 @@ export function DebtForm({
               spellCheck={false}
             />
           </Field>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              name="is_auto_pay"
+              defaultChecked={debt?.is_auto_pay ?? false}
+            />
+            <span>
+              Minimum paid automatically each month (auto-pay enabled)
+            </span>
+          </label>
           <Field label="Notes">
             <input name="notes" defaultValue={debt?.notes ?? ""} />
           </Field>

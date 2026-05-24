@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil, Trash2, AlertTriangle, ExternalLink } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  ExternalLink,
+  Zap,
+} from "lucide-react";
 import type { Debt } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -241,9 +247,17 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
   return (
     <li className="py-3 flex items-center gap-3">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium truncate">{debt.name}</span>
           <TypeBadge type={debt.type} />
+          {debt.is_auto_pay && (
+            <span
+              className="inline-flex items-center gap-1 rounded bg-[var(--teal-bg)] text-[var(--teal-dark)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+              title="Minimum is paid automatically each month"
+            >
+              <Zap size={10} /> Auto-pay
+            </span>
+          )}
         </div>
         <div className="mt-1 flex items-center gap-3 text-xs text-[var(--muted-foreground)] flex-wrap">
           <span className={cn("font-mono", aprColor(debt.interest_rate))}>
