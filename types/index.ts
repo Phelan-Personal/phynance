@@ -15,6 +15,7 @@ export type IncomeStream = {
   is_primary: boolean;
   start_month: string | null; // YYYY-MM-01 or null
   end_month: string | null;
+  pay_days: string | null; // comma-separated 1..31, e.g. "1,15"
   notes: string | null;
   created_at: string;
 };
@@ -44,6 +45,7 @@ export type FinancialSettings = {
   house_monthly_save: number;
   house_mortgage_rate: number;
   house_target_date: string | null;
+  cash_on_hand: number;
   updated_at: string;
 };
 
@@ -58,6 +60,7 @@ export type Debt = {
   interest_rate: number;
   min_payment: number;
   original_balance: number | null;
+  due_day: number | null;
   notes: string | null;
   is_paid_off: boolean;
   paid_off_at: string | null;
@@ -74,6 +77,7 @@ export type Expense = {
   type: ExpenseType;
   amount: number;
   category: string | null;
+  due_day: number | null;
   is_recurring: boolean;
   created_at: string;
 };

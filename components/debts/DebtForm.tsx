@@ -75,15 +75,28 @@ export function DebtForm({
               />
             </Field>
           </div>
-          <Field label="Original Balance (optional)">
-            <input
-              type="number"
-              name="original_balance"
-              step="0.01"
-              min="0"
-              defaultValue={debt?.original_balance ?? ""}
-            />
-          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Original balance (optional)">
+              <input
+                type="number"
+                name="original_balance"
+                step="0.01"
+                min="0"
+                defaultValue={debt?.original_balance ?? ""}
+              />
+            </Field>
+            <Field label="Due day (1–31)">
+              <input
+                type="number"
+                name="due_day"
+                min="1"
+                max="31"
+                step="1"
+                defaultValue={debt?.due_day ?? ""}
+                placeholder="e.g. 15"
+              />
+            </Field>
+          </div>
           <Field label="Notes">
             <input name="notes" defaultValue={debt?.notes ?? ""} />
           </Field>

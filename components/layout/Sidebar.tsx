@@ -11,6 +11,7 @@ import {
   Target,
   FileSpreadsheet,
   Home,
+  CalendarDays,
   LogOut,
   Menu,
   X,
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/cashflow", label: "Cashflow", icon: CalendarDays },
   { href: "/income", label: "Income", icon: Wallet },
   { href: "/debts", label: "Debts", icon: CreditCard },
   { href: "/expenses", label: "Expenses", icon: Receipt },

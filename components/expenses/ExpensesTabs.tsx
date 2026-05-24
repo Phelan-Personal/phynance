@@ -159,7 +159,7 @@ export function ExpensesTabs({ expenses }: { expenses: Expense[] }) {
             }
           }}
           id="exp-form"
-          className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end"
+          className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end"
         >
           <label className="block">
             <div className="text-[11px] text-[var(--muted-foreground)] mb-1">
@@ -188,6 +188,19 @@ export function ExpensesTabs({ expenses }: { expenses: Expense[] }) {
           </label>
           <label className="block">
             <div className="text-[11px] text-[var(--muted-foreground)] mb-1">
+              Due day (1–31)
+            </div>
+            <input
+              type="number"
+              name="due_day"
+              min="1"
+              max="31"
+              step="1"
+              placeholder="e.g. 1"
+            />
+          </label>
+          <label className="block">
+            <div className="text-[11px] text-[var(--muted-foreground)] mb-1">
               Category
             </div>
             <select name="category" defaultValue={cats[0]}>
@@ -196,7 +209,7 @@ export function ExpensesTabs({ expenses }: { expenses: Expense[] }) {
               ))}
             </select>
           </label>
-          <div className="md:col-span-3">
+          <div className="md:col-span-4">
             <Button type="submit">Add</Button>
           </div>
         </form>
@@ -361,7 +374,7 @@ function EditExpenseModal({
               autoFocus
             />
           </Field>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <Field label="Type">
               <select name="type" defaultValue={expense.type}>
                 <option value="personal">Personal</option>
@@ -376,6 +389,16 @@ function EditExpenseModal({
                 min="0"
                 required
                 defaultValue={expense.amount}
+              />
+            </Field>
+            <Field label="Due day">
+              <input
+                type="number"
+                name="due_day"
+                min="1"
+                max="31"
+                step="1"
+                defaultValue={expense.due_day ?? ""}
               />
             </Field>
           </div>

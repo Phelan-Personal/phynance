@@ -242,6 +242,13 @@ function StreamForm({
               />
             </Field>
           </div>
+          <Field label='Pay days (e.g. "1", "1,15", "15,30")'>
+            <input
+              name="pay_days"
+              defaultValue={stream?.pay_days ?? ""}
+              placeholder="comma-separated day numbers 1–31"
+            />
+          </Field>
           <Field label="Notes">
             <input
               name="notes"

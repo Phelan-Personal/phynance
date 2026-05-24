@@ -36,6 +36,7 @@ export function IncomeSettingsAndCashflow({
   const [extraManual, setExtraManual] = useState(
     Number(settings.extra_payment_override) || 0
   );
+  const [cash, setCash] = useState(Number(settings.cash_on_hand) || 0);
 
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -84,6 +85,7 @@ export function IncomeSettingsAndCashflow({
     fd.set("payoff_strategy", strategy);
     fd.set("extra_payment_mode", extraMode);
     fd.set("extra_payment_override", String(extraManual));
+    fd.set("cash_on_hand", String(cash));
     startTransition(async () => {
       await saveSettings(fd);
       setSavedAt(Date.now());
@@ -118,6 +120,12 @@ export function IncomeSettingsAndCashflow({
         </CardTitle>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <NumField
+            label="Cash on hand (starting balance for /cashflow)"
+            value={cash}
+            onChange={setCash}
+            onBlur={save}
+          />
           <NumField
             label="Personal draw ($/mo)"
             value={draw}

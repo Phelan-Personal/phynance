@@ -6,6 +6,15 @@ import { requireUser } from "@/lib/auth";
 const PATHS = ["/", "/expenses", "/income", "/strategy", "/house-goal"];
 const reval = () => PATHS.forEach((p) => revalidatePath(p));
 
+function parseDay(v: FormDataEntryValue | null): number | null {
+  if (v === null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const n = parseInt(s, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 31) return null;
+  return n;
+}
+
 export async function addExpense(formData: FormData) {
   const { user, supabase } = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
@@ -16,6 +25,7 @@ export async function addExpense(formData: FormData) {
   const category = String(formData.get("category") ?? "").trim() || null;
   const isRecurringRaw = String(formData.get("is_recurring") ?? "true");
   const is_recurring = isRecurringRaw !== "false";
+  const due_day = parseDay(formData.get("due_day"));
 
   if (!name) throw new Error("Name is required");
   if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
@@ -26,6 +36,7 @@ export async function addExpense(formData: FormData) {
     type,
     amount,
     category,
+    due_day,
     is_recurring,
   });
   if (error) {
@@ -82,12 +93,14 @@ export async function updateExpense(formData: FormData) {
     | "personal";
   const amount = parseFloat(String(formData.get("amount") ?? "0")) || 0;
   const category = String(formData.get("category") ?? "").trim() || null;
+  const due_day = parseDay(formData.get("due_day"));
+
   if (!name) throw new Error("Name is required");
   if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
 
   const { error } = await supabase
     .from("expenses")
-    .update({ name, type, amount, category })
+    .update({ name, type, amount, category, due_day })
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) {

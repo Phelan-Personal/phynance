@@ -9,6 +9,15 @@ function reval() {
   PATHS_TO_REVAL.forEach((p) => revalidatePath(p));
 }
 
+function parseDay(v: FormDataEntryValue | null): number | null {
+  if (v === null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const n = parseInt(s, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 31) return null;
+  return n;
+}
+
 export async function upsertDebt(formData: FormData) {
   const { user, supabase } = await requireUser();
   const id = String(formData.get("id") ?? "").trim();
@@ -21,12 +30,13 @@ export async function upsertDebt(formData: FormData) {
     parseFloat(String(formData.get("min_payment") ?? "0")) || 0;
   const originalRaw = String(formData.get("original_balance") ?? "").trim();
   const original_balance = originalRaw ? parseFloat(originalRaw) : null;
+  const due_day = parseDay(formData.get("due_day"));
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  if (!name) return;
+  if (!name) throw new Error("Name is required");
 
   if (id) {
-    await supabase
+    const { error } = await supabase
       .from("debts")
       .update({
         name,
@@ -35,14 +45,19 @@ export async function upsertDebt(formData: FormData) {
         interest_rate,
         min_payment,
         original_balance,
+        due_day,
         notes,
         is_paid_off: balance <= 0.01,
         paid_off_at: balance <= 0.01 ? new Date().toISOString() : null,
       })
       .eq("id", id)
       .eq("user_id", user.id);
+    if (error) {
+      console.error("[debts] update failed:", error.message);
+      throw new Error(error.message);
+    }
   } else {
-    await supabase.from("debts").insert({
+    const { error } = await supabase.from("debts").insert({
       user_id: user.id,
       name,
       type,
@@ -50,14 +65,27 @@ export async function upsertDebt(formData: FormData) {
       interest_rate,
       min_payment,
       original_balance: original_balance ?? balance,
+      due_day,
       notes,
     });
+    if (error) {
+      console.error("[debts] insert failed:", error.message);
+      throw new Error(error.message);
+    }
   }
   reval();
 }
 
 export async function deleteDebt(id: string) {
   const { user, supabase } = await requireUser();
-  await supabase.from("debts").delete().eq("id", id).eq("user_id", user.id);
+  const { error } = await supabase
+    .from("debts")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) {
+    console.error("[debts] delete failed:", error.message);
+    throw new Error(error.message);
+  }
   reval();
 }

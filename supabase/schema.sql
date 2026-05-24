@@ -22,6 +22,7 @@ create table if not exists income_streams (
   is_primary boolean default false,
   start_month date,
   end_month date,
+  pay_days text,                                 -- comma-separated days of month, e.g. "1,15"
   notes text,
   created_at timestamptz default now()
 );
@@ -53,6 +54,7 @@ create table if not exists financial_settings (
   house_monthly_save numeric default 0,
   house_mortgage_rate numeric default 7.0,
   house_target_date date,
+  cash_on_hand numeric default 0,
   updated_at timestamptz default now()
 );
 
@@ -68,6 +70,7 @@ create table if not exists debts (
   interest_rate numeric not null default 0,
   min_payment numeric not null default 0,
   original_balance numeric,
+  due_day int check (due_day between 1 and 31),
   notes text,
   is_paid_off boolean default false,
   paid_off_at timestamptz,
@@ -85,6 +88,7 @@ create table if not exists expenses (
   type text check (type in ('personal', 'business')) not null,
   amount numeric not null default 0,
   category text,
+  due_day int check (due_day between 1 and 31),
   is_recurring boolean default true,
   created_at timestamptz default now()
 );

@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   house_monthly_save: 0,
   house_mortgage_rate: 7.0,
   house_target_date: null,
+  cash_on_hand: 0,
 };
 
 export async function getOrCreateSettings(): Promise<FinancialSettings> {
@@ -48,5 +49,5 @@ export async function getOrCreateSettings(): Promise<FinancialSettings> {
     user_id: user.id,
     ...DEFAULT_SETTINGS,
     updated_at: new Date().toISOString(),
-  } as FinancialSettings;
+  } as unknown as FinancialSettings;
 }

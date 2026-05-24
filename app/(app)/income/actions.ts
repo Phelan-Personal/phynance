@@ -42,6 +42,7 @@ export async function saveSettings(formData: FormData) {
       String(formData.get("extra_payment_mode")) === "manual"
         ? numOr0(formData.get("extra_payment_override"))
         : null,
+    cash_on_hand: numOr0(formData.get("cash_on_hand")),
   };
 
   const { data: existing } = await supabase
@@ -118,6 +119,8 @@ export async function upsertStream(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const start_month = toFirstOfMonth(formData.get("start_month"));
   const end_month = toFirstOfMonth(formData.get("end_month"));
+  const payDaysRaw = String(formData.get("pay_days") ?? "").trim();
+  const pay_days = payDaysRaw || null;
   if (!name) throw new Error("Name is required");
 
   if (is_primary) {
@@ -139,6 +142,7 @@ export async function upsertStream(formData: FormData) {
         notes,
         start_month,
         end_month,
+        pay_days,
       })
       .eq("id", id)
       .eq("user_id", user.id);
@@ -153,6 +157,7 @@ export async function upsertStream(formData: FormData) {
       notes,
       start_month,
       end_month,
+      pay_days,
     });
     check("upsertStream.insert", error);
   }
