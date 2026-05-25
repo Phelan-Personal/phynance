@@ -35,9 +35,28 @@ const NAV = [
   { href: "/house-goal", label: "House Goal", icon: Home },
 ];
 
+// Pages not in the main nav (e.g. account) still need a title for the mobile bar
+const EXTRA_TITLES: Record<string, string> = {
+  "/account": "Account",
+};
+
+function currentPageTitle(pathname: string): string {
+  if (pathname === "/") return "Dashboard";
+  const nav = NAV.find(
+    (n) => n.href !== "/" && pathname.startsWith(n.href)
+  );
+  if (nav) return nav.label;
+  const extra = Object.entries(EXTRA_TITLES).find(([href]) =>
+    pathname.startsWith(href)
+  );
+  if (extra) return extra[1];
+  return "Phynance";
+}
+
 export function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const pageTitle = currentPageTitle(pathname);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -97,11 +116,17 @@ export function Sidebar({ email }: { email: string }) {
     <>
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-30 flex items-center justify-between border-b border-[var(--border)] bg-[var(--background)] px-4 py-3">
-        <span className="font-semibold">Phynance</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
+            Phynance
+          </span>
+          <span className="text-[var(--muted-foreground)]">/</span>
+          <span className="font-semibold truncate">{pageTitle}</span>
+        </div>
         <button
           onClick={() => setOpen(true)}
           aria-label="Open menu"
-          className="rounded-md p-1.5 hover:bg-[var(--muted)]"
+          className="rounded-md p-1.5 hover:bg-[var(--muted)] shrink-0"
         >
           <Menu size={18} />
         </button>
