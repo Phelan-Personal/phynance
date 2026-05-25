@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { cn, fmtCurrency, fmtPct } from "@/lib/utils";
 import { calcAutoExtra } from "@/lib/calculations";
 import { monthlyAmortized } from "@/lib/expenses";
+import { activeGrossMonthly, isStreamCurrentlyActive } from "@/lib/streams";
 import { saveSettings } from "@/app/(app)/income/actions";
 
 export function IncomeSettingsAndCashflow({
@@ -45,8 +46,9 @@ export function IncomeSettingsAndCashflow({
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  const grossMonthly = useMemo(
-    () => streams.reduce((a, s) => a + Number(s.avg_monthly || 0), 0),
+  const grossMonthly = useMemo(() => activeGrossMonthly(streams), [streams]);
+  const activeStreams = useMemo(
+    () => streams.filter(isStreamCurrentlyActive),
     [streams]
   );
   const bizExpenses = expenses
@@ -230,9 +232,9 @@ export function IncomeSettingsAndCashflow({
           <div>
             <SectionLabel>Business side</SectionLabel>
             <FlowRow label="All income streams" value={grossMonthly} />
-            {streams.length > 0 && (
+            {activeStreams.length > 0 && (
               <div className="pl-3 border-l border-[var(--border)] ml-1 mb-2 space-y-0.5">
-                {streams.map((s) => (
+                {activeStreams.map((s) => (
                   <div
                     key={s.id}
                     className="flex justify-between text-[11px] text-[var(--muted-foreground)]"
@@ -243,6 +245,13 @@ export function IncomeSettingsAndCashflow({
                     </span>
                   </div>
                 ))}
+                {streams.length > activeStreams.length && (
+                  <div className="text-[10px] text-[var(--muted-foreground)] italic">
+                    + {streams.length - activeStreams.length} ended stream
+                    {streams.length - activeStreams.length === 1 ? "" : "s"}{" "}
+                    (not counted)
+                  </div>
+                )}
               </div>
             )}
             <FlowRow label={`SE tax (${fmtPct(se)})`} value={-seAmt} negative />

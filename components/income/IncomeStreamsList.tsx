@@ -1,12 +1,24 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Pencil, Trash2, Wallet, ArrowUp, ArrowDown } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import {
+  Pencil,
+  Trash2,
+  Wallet,
+  ArrowUp,
+  ArrowDown,
+  Archive,
+  Clock,
+} from "lucide-react";
 import type { IncomeStream, IncomeHistory } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn, fmtCurrency } from "@/lib/utils";
+import {
+  contractDurationLabel,
+  isStreamEnded,
+} from "@/lib/streams";
 import {
   deleteStream,
   upsertStream,
@@ -30,6 +42,17 @@ export function IncomeStreamsList({
 }) {
   const [editing, setEditing] = useState<IncomeStream | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showEnded, setShowEnded] = useState(false);
+
+  const { active, ended } = useMemo(() => {
+    const a: IncomeStream[] = [];
+    const e: IncomeStream[] = [];
+    for (const s of streams) {
+      if (isStreamEnded(s)) e.push(s);
+      else a.push(s);
+    }
+    return { active: a, ended: e };
+  }, [streams]);
 
   const trendByStream: Record<string, "up" | "down" | "flat"> = {};
   for (const s of streams) {
@@ -53,47 +76,91 @@ export function IncomeStreamsList({
   }
 
   return (
-    <Card>
-      <CardTitle
-        right={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setShowForm(true);
-            }}
-          >
-            Add Stream
-          </Button>
-        }
-      >
-        Income Streams
-      </CardTitle>
-
-      {streams.length === 0 ? (
-        <EmptyState
-          icon={Wallet}
-          title="No income streams yet"
-          description="Add your business and any side income so cashflow math is accurate."
-          action={
-            <Button onClick={() => setShowForm(true)}>
-              Add your first stream
-            </Button>
-          }
-        />
-      ) : (
-        <ul className="divide-y divide-[var(--border)]">
-          {streams.map((s) => (
-            <Row
-              key={s.id}
-              stream={s}
-              trend={trendByStream[s.id]}
-              onEdit={() => {
-                setEditing(s);
+    <div className="space-y-4">
+      <Card>
+        <CardTitle
+          right={
+            <Button
+              onClick={() => {
+                setEditing(null);
                 setShowForm(true);
               }}
-            />
-          ))}
-        </ul>
+            >
+              Add Stream
+            </Button>
+          }
+        >
+          Income Streams
+        </CardTitle>
+
+        {active.length === 0 && ended.length === 0 ? (
+          <EmptyState
+            icon={Wallet}
+            title="No income streams yet"
+            description="Add your business and any side income so cashflow math is accurate."
+            action={
+              <Button onClick={() => setShowForm(true)}>
+                Add your first stream
+              </Button>
+            }
+          />
+        ) : active.length === 0 ? (
+          <p className="text-sm text-[var(--muted-foreground)] py-2">
+            No currently active streams. All {ended.length} stream
+            {ended.length === 1 ? " has" : "s have"} ended — see the
+            archive below.
+          </p>
+        ) : (
+          <ul className="divide-y divide-[var(--border)]">
+            {active.map((s) => (
+              <Row
+                key={s.id}
+                stream={s}
+                trend={trendByStream[s.id]}
+                onEdit={() => {
+                  setEditing(s);
+                  setShowForm(true);
+                }}
+              />
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {ended.length > 0 && (
+        <Card>
+          <button
+            onClick={() => setShowEnded((v) => !v)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <span className="inline-flex items-center gap-2 text-sm font-medium">
+              <Archive size={14} className="text-[var(--muted-foreground)]" />
+              Ended streams ({ended.length})
+              <span className="text-[11px] text-[var(--muted-foreground)] font-normal">
+                — excluded from current cashflow
+              </span>
+            </span>
+            <span className="text-[11px] text-[var(--teal)]">
+              {showEnded ? "Hide" : "Show"}
+            </span>
+          </button>
+          {showEnded && (
+            <ul className="divide-y divide-[var(--border)] mt-3">
+              {ended.map((s) => (
+                <Row
+                  key={s.id}
+                  stream={s}
+                  trend={trendByStream[s.id]}
+                  isEnded
+                  onEdit={() => {
+                    setEditing(s);
+                    setShowForm(true);
+                  }}
+                />
+              ))}
+            </ul>
+          )}
+        </Card>
       )}
 
       {showForm && (
@@ -105,34 +172,47 @@ export function IncomeStreamsList({
           }}
         />
       )}
-    </Card>
+    </div>
   );
 }
 
 function Row({
   stream,
   trend,
+  isEnded,
   onEdit,
 }: {
   stream: IncomeStream;
   trend: "up" | "down" | "flat";
+  isEnded?: boolean;
   onEdit: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const duration = contractDurationLabel(stream);
   return (
-    <li className="py-3 flex items-center gap-3">
+    <li className={cn("py-3 flex items-center gap-3", isEnded && "opacity-70")}>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium truncate">{stream.name}</span>
           <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-[10px]">
             {TYPE_LABEL[stream.type] ?? stream.type}
           </span>
-          {stream.is_primary && (
+          {stream.is_primary && !isEnded && (
             <span className="rounded bg-[var(--teal-bg)] text-[var(--teal-dark)] px-1.5 py-0.5 text-[10px] font-medium">
               Primary
             </span>
           )}
+          {isEnded && (
+            <span className="inline-flex items-center gap-1 rounded bg-[var(--muted)] text-[var(--muted-foreground)] px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
+              <Archive size={10} /> Ended
+            </span>
+          )}
         </div>
+        {duration && (
+          <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)] flex items-center gap-1">
+            <Clock size={10} aria-hidden /> {duration}
+          </div>
+        )}
         {stream.notes && (
           <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate">
             {stream.notes}
@@ -141,15 +221,17 @@ function Row({
       </div>
       <div className="text-right shrink-0">
         <div className="flex items-center justify-end gap-1 font-mono text-sm">
-          {trend === "up" && (
+          {trend === "up" && !isEnded && (
             <ArrowUp size={11} className="text-[var(--teal)]" />
           )}
-          {trend === "down" && (
+          {trend === "down" && !isEnded && (
             <ArrowDown size={11} className="text-[var(--coral)]" />
           )}
           {fmtCurrency(Number(stream.avg_monthly))}
         </div>
-        <div className="text-[10px] text-[var(--muted-foreground)]">avg/mo</div>
+        <div className="text-[10px] text-[var(--muted-foreground)]">
+          {isEnded ? "final avg/mo" : "avg/mo"}
+        </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <Button variant="outline" size="sm" onClick={onEdit}>

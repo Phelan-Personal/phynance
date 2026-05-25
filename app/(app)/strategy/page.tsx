@@ -3,6 +3,7 @@ import { getOrCreateSettings } from "@/lib/data";
 import type { Debt, Expense, ExpenseHistory, IncomeStream } from "@/types";
 import { calcAutoExtra, type CalcDebt } from "@/lib/calculations";
 import { monthlyAmortized } from "@/lib/expenses";
+import { activeGrossMonthly } from "@/lib/streams";
 import { StrategyClient } from "@/components/strategy/StrategyClient";
 
 export default async function StrategyPage() {
@@ -37,10 +38,7 @@ export default async function StrategyPage() {
       min_payment: Number(d.min_payment),
     }));
 
-  const grossMonthly = streams.reduce(
-    (a, s) => a + Number(s.avg_monthly || 0),
-    0
-  );
+  const grossMonthly = activeGrossMonthly(streams);
   const bizExpensesTotal = expenses
     .filter((e) => e.type === "business")
     .reduce((a, e) => a + monthlyAmortized(e, expenseHistory), 0);

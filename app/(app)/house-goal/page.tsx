@@ -9,6 +9,7 @@ import type {
 } from "@/types";
 import { calcAutoExtra, type CalcDebt } from "@/lib/calculations";
 import { monthlyAmortized } from "@/lib/expenses";
+import { activeGrossMonthly } from "@/lib/streams";
 import { HouseGoalShell } from "@/components/house/HouseGoalShell";
 
 function trend(history: IncomeHistory[]): "up" | "down" | "flat" {
@@ -65,10 +66,7 @@ export default async function HouseGoalPage() {
       min_payment: Number(d.min_payment),
     }));
 
-  const grossMonthly = streams.reduce(
-    (a, s) => a + Number(s.avg_monthly || 0),
-    0
-  );
+  const grossMonthly = activeGrossMonthly(streams);
   const totalDebtMins = calcDebts.reduce((a, d) => a + d.min_payment, 0);
   const bizExpenses = expenses
     .filter((e) => e.type === "business")

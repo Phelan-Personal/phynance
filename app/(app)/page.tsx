@@ -35,6 +35,7 @@ import {
   lowestPoint,
 } from "@/lib/cashflow";
 import { monthlyAmortized } from "@/lib/expenses";
+import { activeGrossMonthly } from "@/lib/streams";
 import {
   cn,
   fmtCurrency,
@@ -89,10 +90,7 @@ export default async function DashboardPage() {
   const assets = (assetsData ?? []) as Asset[];
   const expenseHistory = (expenseHistoryData ?? []) as ExpenseHistory[];
 
-  const grossMonthly = streams.reduce(
-    (a, s) => a + Number(s.avg_monthly || 0),
-    0
-  );
+  const grossMonthly = activeGrossMonthly(streams);
   const bizExpenses = expenses
     .filter((e) => e.type === "business")
     .reduce((a, e) => a + monthlyAmortized(e, expenseHistory), 0);
