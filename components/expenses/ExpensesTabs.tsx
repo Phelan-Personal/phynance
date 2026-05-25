@@ -56,6 +56,24 @@ const PERS_CATEGORIES = [
 ];
 
 type Tab = "business" | "personal";
+type SortKey = "amount" | "due_day" | "name" | "added";
+
+function sortExpenses(list: Expense[], key: SortKey): Expense[] {
+  const sorted = [...list];
+  if (key === "amount") {
+    sorted.sort((a, b) => Number(b.amount) - Number(a.amount));
+  } else if (key === "due_day") {
+    sorted.sort((a, b) => (a.due_day ?? 99) - (b.due_day ?? 99));
+  } else if (key === "name") {
+    sorted.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (key === "added") {
+    sorted.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }
+  return sorted;
+}
 
 function lastNMonths(n: number): string[] {
   const out: string[] = [];
@@ -88,6 +106,7 @@ export function ExpensesTabs({
 }) {
   const [tab, setTab] = useState<Tab>("business");
   const [grouped, setGrouped] = useState(false);
+  const [sort, setSort] = useState<SortKey>("amount");
   const [editing, setEditing] = useState<Expense | null>(null);
   const [banner, setBanner] = useState<
     { kind: "ok" | "err"; text: string } | null
@@ -114,10 +133,19 @@ export function ExpensesTabs({
       }),
     [expenses, tab, projectFilter]
   );
-  const monthlyOnes = filtered.filter((e) => e.frequency === "monthly");
-  const variableOnes = filtered.filter((e) => e.frequency === "variable");
-  const lessFrequent = filtered.filter(
-    (e) => e.frequency === "annual" || e.frequency === "quarterly"
+  const monthlyOnes = sortExpenses(
+    filtered.filter((e) => e.frequency === "monthly"),
+    sort
+  );
+  const variableOnes = sortExpenses(
+    filtered.filter((e) => e.frequency === "variable"),
+    sort
+  );
+  const lessFrequent = sortExpenses(
+    filtered.filter(
+      (e) => e.frequency === "annual" || e.frequency === "quarterly"
+    ),
+    sort
   );
 
   const monthlyTotal = monthlyOnes.reduce((a, e) => a + Number(e.amount), 0);
@@ -162,6 +190,19 @@ export function ExpensesTabs({
           ))}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+            <span>Sort:</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="!w-auto !py-1 !text-xs"
+            >
+              <option value="amount">Amount (high → low)</option>
+              <option value="due_day">Due day (1st → 31st)</option>
+              <option value="name">Name (A → Z)</option>
+              <option value="added">Recently added</option>
+            </select>
+          </label>
           {projects.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
               <span>Project:</span>

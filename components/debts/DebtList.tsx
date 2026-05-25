@@ -25,7 +25,13 @@ import { singleDebtPayoff } from "@/lib/calculations";
 import { deleteDebt } from "@/app/(app)/debts/actions";
 import { DebtForm } from "./DebtForm";
 
-type SortKey = "interest_rate" | "balance" | "type" | "payoff";
+type SortKey =
+  | "interest_rate"
+  | "balance"
+  | "type"
+  | "due_day"
+  | "payoff_date"
+  | "added";
 type FilterKey = "all" | "business" | "personal";
 
 export function DebtList({ debts }: { debts: Debt[] }) {
@@ -41,10 +47,41 @@ export function DebtList({ debts }: { debts: Debt[] }) {
     let list = active;
     if (filter !== "all") list = list.filter((d) => d.type === filter);
     const sorted = [...list];
-    if (sort === "interest_rate")
+    if (sort === "interest_rate") {
       sorted.sort((a, b) => b.interest_rate - a.interest_rate);
-    if (sort === "balance") sorted.sort((a, b) => b.balance - a.balance);
-    if (sort === "type") sorted.sort((a, b) => a.type.localeCompare(b.type));
+    } else if (sort === "balance") {
+      sorted.sort((a, b) => b.balance - a.balance);
+    } else if (sort === "type") {
+      sorted.sort((a, b) => a.type.localeCompare(b.type));
+    } else if (sort === "due_day") {
+      // null due_day pushed to the end
+      sorted.sort((a, b) => {
+        const av = a.due_day ?? 99;
+        const bv = b.due_day ?? 99;
+        return av - bv;
+      });
+    } else if (sort === "payoff_date") {
+      // soonest payoff first; "never" pushed to the end
+      sorted.sort((a, b) => {
+        const am = singleDebtPayoff(
+          a.balance,
+          a.interest_rate,
+          a.min_payment
+        ).months;
+        const bm = singleDebtPayoff(
+          b.balance,
+          b.interest_rate,
+          b.min_payment
+        ).months;
+        return (am ?? 99999) - (bm ?? 99999);
+      });
+    } else if (sort === "added") {
+      sorted.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
+    }
     return sorted;
   }, [active, filter, sort]);
 
@@ -211,9 +248,12 @@ export function DebtList({ debts }: { debts: Debt[] }) {
               onChange={(e) => setSort(e.target.value as SortKey)}
               className="!w-auto !py-1 !text-xs"
             >
-              <option value="interest_rate">Interest Rate</option>
-              <option value="balance">Balance</option>
+              <option value="interest_rate">APR (high → low)</option>
+              <option value="balance">Balance (high → low)</option>
+              <option value="payoff_date">Payoff date (soonest)</option>
+              <option value="due_day">Due day (1st → 31st)</option>
               <option value="type">Type</option>
+              <option value="added">Recently added</option>
             </select>
           </label>
         </div>
