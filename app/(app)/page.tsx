@@ -16,6 +16,8 @@ import type {
   IncomeHistory,
   ExpenseTransaction,
   Asset,
+  Goal,
+  NextStep,
   PendingPayment,
   FinancialSettings,
 } from "@/types";
@@ -37,6 +39,8 @@ import {
 } from "@/lib/cashflow";
 import { monthlyAmortized } from "@/lib/expenses";
 import { activeGrossMonthly } from "@/lib/streams";
+import { generateSuggestions } from "@/lib/suggestions";
+import { NextStepsAndSuggestions } from "@/components/dashboard/NextStepsAndSuggestions";
 import {
   cn,
   fmtCurrency,
@@ -69,6 +73,8 @@ export default async function DashboardPage() {
     { data: assetsData },
     { data: expenseHistoryData },
     { data: pendingPaymentsData },
+    { data: goalsData },
+    { data: nextStepsData },
     settings,
   ] = await Promise.all([
     supabase.from("debts").select("*").eq("user_id", user.id),
@@ -82,6 +88,8 @@ export default async function DashboardPage() {
     supabase.from("assets").select("*").eq("user_id", user.id),
     supabase.from("expense_history").select("*").eq("user_id", user.id),
     supabase.from("pending_payments").select("*").eq("user_id", user.id),
+    supabase.from("goals").select("*").eq("user_id", user.id),
+    supabase.from("next_steps").select("*").eq("user_id", user.id),
     getOrCreateSettings(),
   ]);
 
@@ -93,6 +101,8 @@ export default async function DashboardPage() {
   const assets = (assetsData ?? []) as Asset[];
   const expenseHistory = (expenseHistoryData ?? []) as ExpenseHistory[];
   const pendingPayments = (pendingPaymentsData ?? []) as PendingPayment[];
+  const goals = (goalsData ?? []) as Goal[];
+  const nextSteps = (nextStepsData ?? []) as NextStep[];
 
   const grossMonthly = activeGrossMonthly(streams);
   const bizExpenses = expenses
@@ -186,6 +196,22 @@ export default async function DashboardPage() {
 
   const totalAssets = assets.reduce((a, x) => a + assetValue(x), 0);
 
+  const suggestions = generateSuggestions({
+    debts,
+    expenses,
+    expenseHistory,
+    streams,
+    incomeHistory,
+    pendingPayments,
+    goals,
+    assets,
+    settings,
+    totalDebtMins: totalMins,
+    grossMonthly,
+    effectiveExtra,
+    cashflowLow,
+  });
+
   return (
     <div className="space-y-5">
       <div>
@@ -237,6 +263,12 @@ export default async function DashboardPage() {
           }
         />
       </div>
+
+      {/* Suggestions + next steps */}
+      <NextStepsAndSuggestions
+        suggestions={suggestions}
+        nextSteps={nextSteps}
+      />
 
       {/* Alerts */}
       {cashflowLow && cashflowLow.balance < 0 && (

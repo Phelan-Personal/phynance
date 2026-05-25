@@ -140,6 +140,30 @@ export type ExpenseTransaction = {
   created_at: string;
 };
 
+export type NextStepCategory =
+  | "debt"
+  | "cashflow"
+  | "income"
+  | "savings"
+  | "tax"
+  | "house"
+  | "rewards"
+  | "other";
+
+export type NextStep = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  category: NextStepCategory;
+  priority: number;
+  is_completed: boolean;
+  completed_at: string | null;
+  due_date: string | null;
+  source_key: string | null;
+  created_at: string;
+};
+
 export type GoalKind =
   | "emergency_fund"
   | "retirement"

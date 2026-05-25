@@ -186,6 +186,26 @@ create table if not exists goals (
 );
 
 -- =============================================
+-- NEXT STEPS (user-managed action checklist)
+-- =============================================
+create table if not exists next_steps (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  title text not null,
+  description text,
+  category text check (category in (
+    'debt', 'cashflow', 'income', 'savings', 'tax', 'house',
+    'rewards', 'other'
+  )) not null default 'other',
+  priority int not null default 5,
+  is_completed boolean not null default false,
+  completed_at timestamptz,
+  due_date date,
+  source_key text,
+  created_at timestamptz default now()
+);
+
+-- =============================================
 -- BANK SCAN SESSIONS (optional persistence)
 -- =============================================
 create table if not exists bank_scans (
@@ -222,6 +242,7 @@ alter table pending_payments enable row level security;
 alter table projects enable row level security;
 alter table assets enable row level security;
 alter table goals enable row level security;
+alter table next_steps enable row level security;
 alter table bank_scans enable row level security;
 
 drop policy if exists "Users can only access their own income_streams" on income_streams;
@@ -287,6 +308,12 @@ create policy "Users can only access their own assets"
 drop policy if exists "Users can only access their own goals" on goals;
 create policy "Users can only access their own goals"
   on goals for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can only access their own next_steps" on next_steps;
+create policy "Users can only access their own next_steps"
+  on next_steps for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
