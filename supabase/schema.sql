@@ -74,6 +74,8 @@ create table if not exists debts (
   due_day int check (due_day between 1 and 31),
   payment_url text,                              -- lender login / payment page
   is_auto_pay boolean not null default false,    -- minimum paid automatically each month
+  rewards_description text,                      -- "2% cash back", "5% groceries"
+  rewards_balance numeric not null default 0,    -- accumulated rewards $ value
   notes text,
   is_paid_off boolean default false,
   paid_off_at timestamptz,

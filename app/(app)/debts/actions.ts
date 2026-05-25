@@ -44,6 +44,13 @@ export async function upsertDebt(formData: FormData) {
       : `https://${rawUrl}`
     : null;
   const is_auto_pay = String(formData.get("is_auto_pay") ?? "") === "on";
+  const rewardsDescRaw = String(formData.get("rewards_description") ?? "").trim();
+  const rewards_description = rewardsDescRaw || null;
+  const rewardsBalRaw = String(formData.get("rewards_balance") ?? "").trim();
+  const rewards_balance =
+    rewardsBalRaw && Number.isFinite(parseFloat(rewardsBalRaw))
+      ? parseFloat(rewardsBalRaw)
+      : 0;
 
   if (!name) throw new Error("Name is required");
 
@@ -61,6 +68,8 @@ export async function upsertDebt(formData: FormData) {
         due_day,
         payment_url,
         is_auto_pay,
+        rewards_description,
+        rewards_balance,
         notes,
         is_paid_off: balance <= 0.01,
         paid_off_at: balance <= 0.01 ? new Date().toISOString() : null,
@@ -84,6 +93,8 @@ export async function upsertDebt(formData: FormData) {
       due_day,
       payment_url,
       is_auto_pay,
+      rewards_description,
+      rewards_balance,
       notes,
     });
     if (error) {

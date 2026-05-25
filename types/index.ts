@@ -64,6 +64,8 @@ export type Debt = {
   due_day: number | null;
   payment_url: string | null;
   is_auto_pay: boolean;
+  rewards_description: string | null;
+  rewards_balance: number;
   notes: string | null;
   is_paid_off: boolean;
   paid_off_at: string | null;

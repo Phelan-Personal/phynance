@@ -128,6 +128,25 @@ export function DebtForm({
               Minimum paid automatically each month (auto-pay enabled)
             </span>
           </label>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Rewards (cards)">
+              <input
+                name="rewards_description"
+                defaultValue={debt?.rewards_description ?? ""}
+                placeholder="2% cash back, 5% groceries"
+              />
+            </Field>
+            <Field label="Rewards balance ($)">
+              <input
+                type="number"
+                name="rewards_balance"
+                step="0.01"
+                min="0"
+                defaultValue={debt?.rewards_balance ?? ""}
+                placeholder="0"
+              />
+            </Field>
+          </div>
           <Field label="Notes">
             <input name="notes" defaultValue={debt?.notes ?? ""} />
           </Field>

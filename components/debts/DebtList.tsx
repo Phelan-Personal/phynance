@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ExternalLink,
   Zap,
+  Gift,
 } from "lucide-react";
 import type { Debt } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -69,6 +70,14 @@ export function DebtList({ debts }: { debts: Debt[] }) {
     .filter((d) => d.type === "personal")
     .reduce((a, d) => a + d.balance * (d.interest_rate / 100 / 12), 0);
 
+  const debtsWithRewards = active.filter(
+    (d) => Number(d.rewards_balance) > 0 || d.rewards_description
+  );
+  const totalRewardsBalance = active.reduce(
+    (a, d) => a + Number(d.rewards_balance || 0),
+    0
+  );
+
   const withLimits = active.filter(
     (d) => d.credit_limit !== null && Number(d.credit_limit) > 0
   );
@@ -108,6 +117,23 @@ export function DebtList({ debts }: { debts: Debt[] }) {
             value={fmtCurrency(totalInterestYearly)}
             sub="at today's balances — drops as you pay down"
           />
+        </div>
+      )}
+      {(totalRewardsBalance > 0 || debtsWithRewards.length > 0) && (
+        <div className="rounded-md border border-[color:var(--teal)]/30 bg-[var(--teal-bg)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Gift size={14} className="text-[var(--teal-dark)]" />
+            <span className="text-[10px] uppercase tracking-wider text-[var(--teal-dark)]">
+              Rewards
+            </span>
+            <span className="text-[11px] text-[var(--teal-dark)]/80">
+              across {debtsWithRewards.length} card
+              {debtsWithRewards.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="font-mono text-base font-semibold text-[var(--teal-dark)]">
+            {fmtCurrency(totalRewardsBalance)} earned
+          </div>
         </div>
       )}
       {withLimits.length > 0 && (
@@ -323,6 +349,23 @@ function DebtRow({ debt, onEdit }: { debt: Debt; onEdit: () => void }) {
             /mo ·{" "}
             <span className="font-mono">{fmtCurrency(yearlyInterest)}</span>
             /yr
+          </div>
+        )}
+        {(debt.rewards_description ||
+          Number(debt.rewards_balance) > 0) && (
+          <div className="mt-1 text-[11px] text-[var(--teal-dark)] flex items-center gap-1.5 flex-wrap">
+            <Gift size={11} aria-hidden />
+            {debt.rewards_description && (
+              <span>{debt.rewards_description}</span>
+            )}
+            {debt.rewards_description &&
+              Number(debt.rewards_balance) > 0 &&
+              " · "}
+            {Number(debt.rewards_balance) > 0 && (
+              <span className="font-mono">
+                {fmtCurrency(Number(debt.rewards_balance))} earned
+              </span>
+            )}
           </div>
         )}
         <div className="mt-1 text-[11px]">
