@@ -12,6 +12,7 @@ import { IncomeStreamsList } from "@/components/income/IncomeStreamsList";
 import { IncomeSettingsAndCashflow } from "@/components/income/IncomeSettingsAndCashflow";
 import { IncomeHistoryGrid } from "@/components/income/IncomeHistoryGrid";
 import { PendingPaymentsList } from "@/components/income/PendingPaymentsList";
+import { IncomeTotalsCard } from "@/components/income/IncomeTotalsCard";
 
 export default async function IncomePage() {
   const { user, supabase } = await requireUser();
@@ -59,6 +60,12 @@ export default async function IncomePage() {
           payoff after taxes and obligations.
         </p>
       </div>
+
+      <IncomeTotalsCard
+        streams={streams}
+        history={history}
+        pendingPayments={pendingPayments}
+      />
 
       <IncomeStreamsList streams={streams} history={history} />
 
