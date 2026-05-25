@@ -140,6 +140,31 @@ export type ExpenseTransaction = {
   created_at: string;
 };
 
+export type GoalKind =
+  | "emergency_fund"
+  | "retirement"
+  | "savings"
+  | "investment"
+  | "debt_payoff"
+  | "custom";
+
+export type Goal = {
+  id: string;
+  user_id: string;
+  name: string;
+  kind: GoalKind;
+  target_amount: number;
+  current_amount: number;
+  linked_asset_id: string | null;
+  target_date: string | null;
+  monthly_contribution_override: number | null;
+  priority: number;
+  notes: string | null;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AssetType =
   | "savings"
   | "bank_account"

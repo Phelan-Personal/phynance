@@ -159,6 +159,33 @@ create table if not exists assets (
 );
 
 -- =============================================
+-- GOALS (multi-goal income planner)
+-- =============================================
+create table if not exists goals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  name text not null,
+  kind text check (kind in (
+    'emergency_fund',
+    'retirement',
+    'savings',
+    'investment',
+    'debt_payoff',
+    'custom'
+  )) not null default 'custom',
+  target_amount numeric not null,
+  current_amount numeric not null default 0,
+  linked_asset_id uuid references assets on delete set null,
+  target_date date,
+  monthly_contribution_override numeric,
+  priority int default 5,
+  notes text,
+  is_archived boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- =============================================
 -- BANK SCAN SESSIONS (optional persistence)
 -- =============================================
 create table if not exists bank_scans (
@@ -194,6 +221,7 @@ alter table expense_history enable row level security;
 alter table pending_payments enable row level security;
 alter table projects enable row level security;
 alter table assets enable row level security;
+alter table goals enable row level security;
 alter table bank_scans enable row level security;
 
 drop policy if exists "Users can only access their own income_streams" on income_streams;
@@ -256,6 +284,12 @@ create policy "Users can only access their own assets"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users can only access their own goals" on goals;
+create policy "Users can only access their own goals"
+  on goals for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 drop policy if exists "Users can only access their own bank_scans" on bank_scans;
 create policy "Users can only access their own bank_scans"
   on bank_scans for all
@@ -283,4 +317,8 @@ create trigger settings_updated_at before update on financial_settings
 
 drop trigger if exists assets_updated_at on assets;
 create trigger assets_updated_at before update on assets
+  for each row execute procedure handle_updated_at();
+
+drop trigger if exists goals_updated_at on goals;
+create trigger goals_updated_at before update on goals
   for each row execute procedure handle_updated_at();
