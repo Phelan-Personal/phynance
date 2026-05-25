@@ -191,6 +191,7 @@ alter table debts enable row level security;
 alter table expenses enable row level security;
 alter table expense_transactions enable row level security;
 alter table expense_history enable row level security;
+alter table pending_payments enable row level security;
 alter table projects enable row level security;
 alter table assets enable row level security;
 alter table bank_scans enable row level security;
@@ -234,6 +235,12 @@ create policy "Users can only access their own expense_transactions"
 drop policy if exists "Users can only access their own expense_history" on expense_history;
 create policy "Users can only access their own expense_history"
   on expense_history for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can only access their own pending_payments" on pending_payments;
+create policy "Users can only access their own pending_payments"
+  on pending_payments for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 

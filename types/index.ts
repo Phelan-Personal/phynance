@@ -111,6 +111,20 @@ export type Project = {
   created_at: string;
 };
 
+export type PendingPayment = {
+  id: string;
+  user_id: string;
+  stream_id: string | null;
+  client_name: string;
+  description: string | null;
+  amount: number;
+  issued_on: string | null;
+  expected_on: string | null;
+  received_on: string | null; // null = pending
+  notes: string | null;
+  created_at: string;
+};
+
 export type ExpenseTransactionSource = "manual" | "bank_scan";
 
 export type ExpenseTransaction = {

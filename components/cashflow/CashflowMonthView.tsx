@@ -39,6 +39,7 @@ import type {
   ExpenseTransaction,
   IncomeHistory,
   IncomeStream,
+  PendingPayment,
 } from "@/types";
 
 export function CashflowMonthView({
@@ -49,6 +50,7 @@ export function CashflowMonthView({
   transactions,
   loggedIncome,
   expenseHistory,
+  pendingPayments,
 }: {
   startingBalance: number;
   streams: IncomeStream[];
@@ -57,6 +59,7 @@ export function CashflowMonthView({
   transactions: ExpenseTransaction[];
   loggedIncome: IncomeHistory[];
   expenseHistory: ExpenseHistory[];
+  pendingPayments: PendingPayment[];
 }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -73,6 +76,7 @@ export function CashflowMonthView({
         transactions,
         loggedIncome,
         expenseHistory,
+        pendingPayments,
       }),
     [
       year,
@@ -83,6 +87,7 @@ export function CashflowMonthView({
       transactions,
       loggedIncome,
       expenseHistory,
+      pendingPayments,
     ]
   );
 

@@ -7,6 +7,7 @@ import type {
   ExpenseTransaction,
   IncomeHistory,
   IncomeStream,
+  PendingPayment,
 } from "@/types";
 import { CashflowMonthView } from "@/components/cashflow/CashflowMonthView";
 
@@ -19,6 +20,7 @@ export default async function CashflowPage() {
     { data: historyData },
     { data: transactionsData },
     { data: expenseHistoryData },
+    { data: pendingPaymentsData },
     settings,
   ] = await Promise.all([
     supabase.from("debts").select("*").eq("user_id", user.id),
@@ -27,6 +29,7 @@ export default async function CashflowPage() {
     supabase.from("income_history").select("*").eq("user_id", user.id),
     supabase.from("expense_transactions").select("*").eq("user_id", user.id),
     supabase.from("expense_history").select("*").eq("user_id", user.id),
+    supabase.from("pending_payments").select("*").eq("user_id", user.id),
     getOrCreateSettings(),
   ]);
 
@@ -36,6 +39,7 @@ export default async function CashflowPage() {
   const history = (historyData ?? []) as IncomeHistory[];
   const transactions = (transactionsData ?? []) as ExpenseTransaction[];
   const expenseHistory = (expenseHistoryData ?? []) as ExpenseHistory[];
+  const pendingPayments = (pendingPaymentsData ?? []) as PendingPayment[];
 
   return (
     <div className="space-y-4">
@@ -54,6 +58,7 @@ export default async function CashflowPage() {
         transactions={transactions}
         loggedIncome={history}
         expenseHistory={expenseHistory}
+        pendingPayments={pendingPayments}
       />
     </div>
   );

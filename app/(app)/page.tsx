@@ -16,6 +16,7 @@ import type {
   IncomeHistory,
   ExpenseTransaction,
   Asset,
+  PendingPayment,
   FinancialSettings,
 } from "@/types";
 import { assetValue } from "@/types";
@@ -67,6 +68,7 @@ export default async function DashboardPage() {
     { data: transactionsData },
     { data: assetsData },
     { data: expenseHistoryData },
+    { data: pendingPaymentsData },
     settings,
   ] = await Promise.all([
     supabase.from("debts").select("*").eq("user_id", user.id),
@@ -79,6 +81,7 @@ export default async function DashboardPage() {
       .eq("user_id", user.id),
     supabase.from("assets").select("*").eq("user_id", user.id),
     supabase.from("expense_history").select("*").eq("user_id", user.id),
+    supabase.from("pending_payments").select("*").eq("user_id", user.id),
     getOrCreateSettings(),
   ]);
 
@@ -89,6 +92,7 @@ export default async function DashboardPage() {
   const transactions = (transactionsData ?? []) as ExpenseTransaction[];
   const assets = (assetsData ?? []) as Asset[];
   const expenseHistory = (expenseHistoryData ?? []) as ExpenseHistory[];
+  const pendingPayments = (pendingPaymentsData ?? []) as PendingPayment[];
 
   const grossMonthly = activeGrossMonthly(streams);
   const bizExpenses = expenses
@@ -154,7 +158,19 @@ export default async function DashboardPage() {
     transactions,
     loggedIncome: incomeHistory,
     expenseHistory,
+    pendingPayments,
   });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const outstandingAR = pendingPayments
+    .filter((p) => !p.received_on)
+    .reduce((a, p) => a + Number(p.amount), 0);
+  const overdueAR = pendingPayments
+    .filter(
+      (p) => !p.received_on && p.expected_on && p.expected_on < today
+    )
+    .reduce((a, p) => a + Number(p.amount), 0);
+  const pendingCount = pendingPayments.filter((p) => !p.received_on).length;
   const cashOnHand = Number(settings.cash_on_hand) || 0;
   const cashflowPoints = dailyBalances(
     cashflowEvents,
@@ -277,6 +293,49 @@ export default async function DashboardPage() {
             dti
           )}) is above the 43% lending threshold. Pay off debt before applying for a mortgage.`}
         />
+      )}
+
+      {/* Outstanding A/R */}
+      {outstandingAR > 0 && (
+        <Card>
+          <CardTitle
+            right={
+              <Link
+                href="/income"
+                className="text-xs text-[var(--teal)] hover:underline"
+              >
+                Manage A/R →
+              </Link>
+            }
+          >
+            Accounts Receivable
+          </CardTitle>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <MetricCard
+              label="Outstanding"
+              value={fmtCurrency(outstandingAR)}
+              sub={`${pendingCount} pending payment${pendingCount === 1 ? "" : "s"}`}
+              tone="good"
+            />
+            {overdueAR > 0 && (
+              <MetricCard
+                label="Overdue"
+                value={fmtCurrency(overdueAR)}
+                sub="expected date passed — follow up"
+                tone="bad"
+              />
+            )}
+            <MetricCard
+              label="Already collected"
+              value={fmtCurrency(
+                pendingPayments
+                  .filter((p) => p.received_on)
+                  .reduce((a, p) => a + Number(p.amount), 0)
+              )}
+              sub="total received to date"
+            />
+          </div>
+        </Card>
       )}
 
       {/* Assets summary */}

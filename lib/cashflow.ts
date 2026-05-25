@@ -5,6 +5,7 @@ import type {
   ExpenseTransaction,
   IncomeHistory,
   IncomeStream,
+  PendingPayment,
 } from "@/types";
 import { amountInMonth } from "./expenses";
 
@@ -47,6 +48,7 @@ export function eventsForMonth(opts: {
   transactions: ExpenseTransaction[];
   loggedIncome: IncomeHistory[];
   expenseHistory?: ExpenseHistory[];
+  pendingPayments?: PendingPayment[];
 }): CashflowEvent[] {
   const {
     year,
@@ -57,6 +59,7 @@ export function eventsForMonth(opts: {
     transactions,
     loggedIncome,
     expenseHistory = [],
+    pendingPayments = [],
   } = opts;
   const events: CashflowEvent[] = [];
   const dim = daysInMonth(year, monthIndex);
@@ -141,6 +144,45 @@ export function eventsForMonth(opts: {
       source: "recurring",
       isProjected: true,
     });
+  }
+
+  // ────── Pending payments (A/R) ──────
+  // Unpaid payments expected in this month appear on their expected day.
+  // Unpaid payments that are overdue (expected_on in past) AND we're viewing
+  // the current month land on day 1 as a carryover so the cashflow still
+  // reflects the expected inflow.
+  const todayIsoStr = new Date().toISOString().slice(0, 10);
+  const todayMonthIso = todayIsoStr.slice(0, 7);
+  for (const pp of pendingPayments) {
+    if (pp.received_on) continue;
+    if (!pp.expected_on) continue;
+    const ppMonthIso = pp.expected_on.slice(0, 7);
+    if (ppMonthIso === monthKey) {
+      const day = clamp(Number(pp.expected_on.slice(8, 10)) || 1);
+      events.push({
+        id: `pp-${pp.id}`,
+        day,
+        kind: "income",
+        name: `${pp.client_name}${pp.description ? " — " + pp.description : ""}`,
+        amount: Number(pp.amount),
+        source: "recurring",
+        isProjected: true,
+      });
+    } else if (
+      pp.expected_on < todayIsoStr &&
+      monthKey === todayMonthIso
+    ) {
+      // Overdue: carry into current month at day 1
+      events.push({
+        id: `pp-${pp.id}-overdue`,
+        day: 1,
+        kind: "income",
+        name: `${pp.client_name} (overdue)`,
+        amount: Number(pp.amount),
+        source: "recurring",
+        isProjected: true,
+      });
+    }
   }
 
   // ────── Logged transactions in this month ──────
