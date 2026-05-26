@@ -345,7 +345,8 @@ function StreamForm({
               defaultChecked={stream?.is_primary ?? false}
             />
             <span>
-              Primary business — personal draw is taken from this stream
+              Mark as primary — your main income source. Adds a Primary chip
+              in the list so it's easy to spot when you have several streams.
             </span>
           </label>
 

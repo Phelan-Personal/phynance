@@ -111,6 +111,23 @@ export type Project = {
   created_at: string;
 };
 
+export type RecurringRevenue = {
+  id: string;
+  user_id: string;
+  stream_id: string | null;
+  name: string;
+  client_name: string | null;
+  amount: number;
+  category: string | null;
+  due_day: number | null;
+  start_month: string | null;
+  end_month: string | null;
+  notes: string | null;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PendingPayment = {
   id: string;
   user_id: string;

@@ -37,6 +37,24 @@ create table if not exists income_history (
   unique(stream_id, month)
 );
 
+-- Recurring revenue contracts (per-client subscriptions, retainers, etc.)
+create table if not exists recurring_revenue (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  stream_id uuid references income_streams on delete set null,
+  name text not null,
+  client_name text,
+  amount numeric not null,
+  category text,
+  due_day int check (due_day between 1 and 31),
+  start_month date,
+  end_month date,
+  notes text,
+  is_archived boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- =============================================
 -- FINANCIAL SETTINGS (one row per user)
 -- =============================================
@@ -239,6 +257,7 @@ alter table expenses enable row level security;
 alter table expense_transactions enable row level security;
 alter table expense_history enable row level security;
 alter table pending_payments enable row level security;
+alter table recurring_revenue enable row level security;
 alter table projects enable row level security;
 alter table assets enable row level security;
 alter table goals enable row level security;
@@ -290,6 +309,12 @@ create policy "Users can only access their own expense_history"
 drop policy if exists "Users can only access their own pending_payments" on pending_payments;
 create policy "Users can only access their own pending_payments"
   on pending_payments for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can only access their own recurring_revenue" on recurring_revenue;
+create policy "Users can only access their own recurring_revenue"
+  on recurring_revenue for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
@@ -348,4 +373,8 @@ create trigger assets_updated_at before update on assets
 
 drop trigger if exists goals_updated_at on goals;
 create trigger goals_updated_at before update on goals
+  for each row execute procedure handle_updated_at();
+
+drop trigger if exists recurring_revenue_updated_at on recurring_revenue;
+create trigger recurring_revenue_updated_at before update on recurring_revenue
   for each row execute procedure handle_updated_at();

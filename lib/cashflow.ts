@@ -6,6 +6,7 @@ import type {
   IncomeHistory,
   IncomeStream,
   PendingPayment,
+  RecurringRevenue,
 } from "@/types";
 import { amountInMonth } from "./expenses";
 
@@ -49,6 +50,7 @@ export function eventsForMonth(opts: {
   loggedIncome: IncomeHistory[];
   expenseHistory?: ExpenseHistory[];
   pendingPayments?: PendingPayment[];
+  recurringRevenue?: RecurringRevenue[];
 }): CashflowEvent[] {
   const {
     year,
@@ -60,6 +62,7 @@ export function eventsForMonth(opts: {
     loggedIncome,
     expenseHistory = [],
     pendingPayments = [],
+    recurringRevenue = [],
   } = opts;
   const events: CashflowEvent[] = [];
   const dim = daysInMonth(year, monthIndex);
@@ -98,6 +101,27 @@ export function eventsForMonth(opts: {
         source: hasLogged ? "logged" : "recurring",
         isProjected: !hasLogged,
       });
+    });
+  }
+
+  // ────── Recurring revenue contracts (per-client subscriptions) ──────
+  // Each contract emits an income event on its due day, scoped to its
+  // active range (start_month / end_month).
+  const monthFirstIso = `${monthKey}-01`;
+  for (const r of recurringRevenue) {
+    if (r.is_archived) continue;
+    if (r.start_month && monthFirstIso < r.start_month) continue;
+    if (r.end_month && monthFirstIso > r.end_month) continue;
+    const day = clamp(r.due_day ?? 1);
+    events.push({
+      id: `recur-${r.id}`,
+      day,
+      kind: "income",
+      name: r.client_name ? `${r.name} (${r.client_name})` : r.name,
+      amount: Number(r.amount),
+      source: "recurring",
+      category: r.category,
+      isProjected: true,
     });
   }
 

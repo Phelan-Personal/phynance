@@ -6,6 +6,7 @@ import type {
   Expense,
   ExpenseHistory,
   PendingPayment,
+  RecurringRevenue,
 } from "@/types";
 import { getOrCreateSettings } from "@/lib/data";
 import { IncomeStreamsList } from "@/components/income/IncomeStreamsList";
@@ -13,6 +14,7 @@ import { IncomeSettingsAndCashflow } from "@/components/income/IncomeSettingsAnd
 import { IncomeHistoryGrid } from "@/components/income/IncomeHistoryGrid";
 import { PendingPaymentsList } from "@/components/income/PendingPaymentsList";
 import { IncomeTotalsCard } from "@/components/income/IncomeTotalsCard";
+import { RecurringRevenueList } from "@/components/income/RecurringRevenueList";
 
 export default async function IncomePage() {
   const { user, supabase } = await requireUser();
@@ -24,6 +26,7 @@ export default async function IncomePage() {
     { data: expensesData },
     { data: expenseHistoryData },
     { data: pendingPaymentsData },
+    { data: recurringRevenueData },
     settings,
   ] = await Promise.all([
     supabase
@@ -41,6 +44,11 @@ export default async function IncomePage() {
       .select("*")
       .eq("user_id", user.id)
       .order("expected_on", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("recurring_revenue")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("due_day", { ascending: true, nullsFirst: false }),
     getOrCreateSettings(),
   ]);
 
@@ -50,6 +58,8 @@ export default async function IncomePage() {
   const expenses = (expensesData ?? []) as Expense[];
   const expenseHistory = (expenseHistoryData ?? []) as ExpenseHistory[];
   const pendingPayments = (pendingPaymentsData ?? []) as PendingPayment[];
+  const recurringRevenue =
+    (recurringRevenueData ?? []) as RecurringRevenue[];
 
   return (
     <div className="space-y-4">
@@ -68,6 +78,11 @@ export default async function IncomePage() {
       />
 
       <IncomeStreamsList streams={streams} history={history} />
+
+      <RecurringRevenueList
+        items={recurringRevenue}
+        streams={streams}
+      />
 
       <PendingPaymentsList payments={pendingPayments} streams={streams} />
 
