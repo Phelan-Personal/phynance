@@ -221,6 +221,7 @@ export type Asset = {
   symbol: string | null;
   units: number;
   price_per_unit: number;
+  link_url: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

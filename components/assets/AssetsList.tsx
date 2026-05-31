@@ -5,6 +5,7 @@ import {
   Banknote,
   Building2,
   Coins,
+  ExternalLink,
   LineChart,
   Wallet,
   Pencil,
@@ -249,6 +250,18 @@ function AssetRow({
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {asset.link_url && (
+          <a
+            href={asset.link_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--teal-dark)] hover:bg-[var(--teal-bg)] transition-colors"
+            aria-label={`Open ${asset.name}`}
+          >
+            <ExternalLink size={11} />
+            Open
+          </a>
+        )}
         <Button variant="outline" size="sm" onClick={onEdit}>
           <Pencil size={12} />
         </Button>
@@ -442,6 +455,17 @@ function AssetForm({
             </Field>
           )}
 
+          <Field label="Link URL (broker / bank login)">
+            <input
+              type="url"
+              name="link_url"
+              defaultValue={asset?.link_url ?? ""}
+              placeholder="schwab.com or https://schwab.com"
+              inputMode="url"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
           <Field label="Notes">
             <input name="notes" defaultValue={asset?.notes ?? ""} />
           </Field>

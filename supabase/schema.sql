@@ -171,6 +171,7 @@ create table if not exists assets (
   symbol text,                                   -- ticker (BTC, AAPL); null for savings
   units numeric not null default 1,              -- 1 for savings; share/coin count otherwise
   price_per_unit numeric not null default 0,     -- $ per unit (for savings, = total balance)
+  link_url text,                                 -- broker/bank login URL
   notes text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()

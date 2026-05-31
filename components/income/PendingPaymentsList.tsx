@@ -420,11 +420,39 @@ function ReceivedRow({
           })
         }
         aria-label="Move back to pending"
+        title="Move back to pending"
       >
         <RotateCcw size={11} />
       </Button>
       <Button variant="outline" size="sm" onClick={onEdit}>
         <Pencil size={12} />
+      </Button>
+      <Button
+        variant="danger"
+        size="sm"
+        disabled={isPending}
+        onClick={() => {
+          if (!confirm(`Delete received payment from "${payment.client_name}"?`))
+            return;
+          startTransition(async () => {
+            try {
+              await deletePendingPayment(payment.id);
+              onBanner({
+                kind: "ok",
+                text: `Deleted ${payment.client_name} payment.`,
+              });
+            } catch (e) {
+              onBanner({
+                kind: "err",
+                text: `Couldn't delete: ${(e as Error).message}`,
+              });
+            }
+          });
+        }}
+        aria-label="Delete"
+        title="Delete permanently"
+      >
+        <Trash2 size={11} />
       </Button>
     </li>
   );

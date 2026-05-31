@@ -27,6 +27,12 @@ export async function upsertAsset(formData: FormData) {
   const symbol = String(formData.get("symbol") ?? "").trim().toUpperCase() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const trackUnits = String(formData.get("track_units") ?? "") === "on";
+  const rawUrl = String(formData.get("link_url") ?? "").trim();
+  const link_url = rawUrl
+    ? /^https?:\/\//i.test(rawUrl)
+      ? rawUrl
+      : `https://${rawUrl}`
+    : null;
 
   if (!name) throw new Error("Name is required");
 
@@ -48,6 +54,7 @@ export async function upsertAsset(formData: FormData) {
     symbol,
     units,
     price_per_unit,
+    link_url,
     notes,
   };
 
