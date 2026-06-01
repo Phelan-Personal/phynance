@@ -9,7 +9,7 @@ import {
   Zap,
   Gift,
 } from "lucide-react";
-import type { Debt } from "@/types";
+import type { Debt, DebtPayment } from "@/types";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
@@ -34,11 +34,27 @@ type SortKey =
   | "added";
 type FilterKey = "all" | "business" | "personal";
 
-export function DebtList({ debts }: { debts: Debt[] }) {
+export function DebtList({
+  debts,
+  payments,
+}: {
+  debts: Debt[];
+  payments: DebtPayment[];
+}) {
   const [sort, setSort] = useState<SortKey>("interest_rate");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [editing, setEditing] = useState<Debt | null>(null);
   const [showForm, setShowForm] = useState(false);
+
+  const paymentsByDebt = useMemo(() => {
+    const m = new Map<string, DebtPayment[]>();
+    for (const p of payments) {
+      const arr = m.get(p.debt_id) ?? [];
+      arr.push(p);
+      m.set(p.debt_id, arr);
+    }
+    return m;
+  }, [payments]);
 
   const active = useMemo(() => debts.filter((d) => !d.is_paid_off), [debts]);
   const paid = useMemo(() => debts.filter((d) => d.is_paid_off), [debts]);
@@ -307,6 +323,9 @@ export function DebtList({ debts }: { debts: Debt[] }) {
       {showForm && (
         <DebtForm
           debt={editing}
+          payments={
+            editing ? (paymentsByDebt.get(editing.id) ?? []) : []
+          }
           onClose={() => {
             setShowForm(false);
             setEditing(null);

@@ -101,6 +101,18 @@ create table if not exists debts (
   updated_at timestamptz default now()
 );
 
+-- Debt payment history
+create table if not exists debt_payments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  debt_id uuid references debts on delete cascade not null,
+  amount numeric not null,
+  payment_date date not null default current_date,
+  balance_after numeric,
+  notes text,
+  created_at timestamptz default now()
+);
+
 -- =============================================
 -- EXPENSES
 -- =============================================
@@ -254,6 +266,7 @@ alter table income_streams enable row level security;
 alter table income_history enable row level security;
 alter table financial_settings enable row level security;
 alter table debts enable row level security;
+alter table debt_payments enable row level security;
 alter table expenses enable row level security;
 alter table expense_transactions enable row level security;
 alter table expense_history enable row level security;
@@ -286,6 +299,12 @@ create policy "Users can only access their own financial_settings"
 drop policy if exists "Users can only access their own debts" on debts;
 create policy "Users can only access their own debts"
   on debts for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can only access their own debt_payments" on debt_payments;
+create policy "Users can only access their own debt_payments"
+  on debt_payments for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 

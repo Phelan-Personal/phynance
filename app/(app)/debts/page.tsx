@@ -1,14 +1,22 @@
 import { requireUser } from "@/lib/auth";
-import type { Debt } from "@/types";
+import type { Debt, DebtPayment } from "@/types";
 import { DebtList } from "@/components/debts/DebtList";
 
 export default async function DebtsPage() {
   const { user, supabase } = await requireUser();
-  const { data } = await supabase
-    .from("debts")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("balance", { ascending: false });
+  const [{ data: debts }, { data: payments }] = await Promise.all([
+    supabase
+      .from("debts")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("balance", { ascending: false }),
+    supabase
+      .from("debt_payments")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("payment_date", { ascending: false })
+      .order("created_at", { ascending: false }),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -19,7 +27,10 @@ export default async function DebtsPage() {
           costliest first.
         </p>
       </div>
-      <DebtList debts={(data ?? []) as Debt[]} />
+      <DebtList
+        debts={(debts ?? []) as Debt[]}
+        payments={(payments ?? []) as DebtPayment[]}
+      />
     </div>
   );
 }

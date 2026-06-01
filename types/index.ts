@@ -51,6 +51,17 @@ export type FinancialSettings = {
 
 export type DebtType = "personal" | "business";
 
+export type DebtPayment = {
+  id: string;
+  user_id: string;
+  debt_id: string;
+  amount: number;
+  payment_date: string;
+  balance_after: number | null;
+  notes: string | null;
+  created_at: string;
+};
+
 export type Debt = {
   id: string;
   user_id: string;
