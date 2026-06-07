@@ -131,6 +131,37 @@ export function DebtList({
     0
   );
 
+  // ─── Data sanity check ────────────────────────────────────
+  // Flag debts whose balance looks implausible relative to their credit limit.
+  // Catches decimal-misplacement errors (e.g. $6,079.92 entered as $607,992).
+  type Anomaly = {
+    debt: Debt;
+    balance: number;
+    limit: number;
+    utilizationPct: number;
+    suggestion: number; // balance / 100, the common decimal-shift correction
+    suggestionUtilizationPct: number;
+  };
+  const anomalies: Anomaly[] = active
+    .filter((d) => {
+      if (!d.credit_limit || Number(d.credit_limit) <= 0) return false;
+      const util = (Number(d.balance) / Number(d.credit_limit)) * 100;
+      return util > 500;
+    })
+    .map((d) => {
+      const balance = Number(d.balance);
+      const limit = Number(d.credit_limit);
+      const suggestion = balance / 100;
+      return {
+        debt: d,
+        balance,
+        limit,
+        utilizationPct: (balance / limit) * 100,
+        suggestion,
+        suggestionUtilizationPct: (suggestion / limit) * 100,
+      };
+    });
+
   const withLimits = active.filter(
     (d) => d.credit_limit !== null && Number(d.credit_limit) > 0
   );
@@ -147,6 +178,48 @@ export function DebtList({
 
   return (
     <div className="space-y-4">
+      {anomalies.length > 0 && (
+        <div className="rounded-md border border-[color:var(--coral)]/40 bg-[var(--coral-bg)] px-3 py-3 text-xs text-[var(--coral)] space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <strong className="font-semibold">
+                Possible data entry error{anomalies.length > 1 ? "s" : ""}:
+              </strong>{" "}
+              {anomalies.length} debt
+              {anomalies.length > 1 ? "s have" : " has"} a balance that's
+              over 5× the credit limit. This skews all the totals and the
+              utilization tile. The most common cause is a misplaced decimal
+              point.
+            </div>
+          </div>
+          <ul className="space-y-1.5 pl-6">
+            {anomalies.map((a) => (
+              <li key={a.debt.id}>
+                <strong>{a.debt.name}</strong>: balance{" "}
+                <span className="font-mono">{fmtCurrency(a.balance)}</span> on
+                a <span className="font-mono">{fmtCurrency(a.limit)}</span>{" "}
+                limit ({fmtPct(a.utilizationPct)} utilization).{" "}
+                <button
+                  className="underline font-medium hover:no-underline"
+                  onClick={() => {
+                    setEditing(a.debt);
+                    setShowForm(true);
+                  }}
+                >
+                  Edit
+                </button>
+                {" — "}
+                did you mean{" "}
+                <span className="font-mono">{fmtCurrency(a.suggestion)}</span>{" "}
+                (which would put it at{" "}
+                {fmtPct(a.suggestionUtilizationPct)} utilization)?
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <SumCell label="Total Debt" value={fmtCurrency(totalDebt)} />
